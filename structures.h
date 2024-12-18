@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cstring>
+#include <netinet/in.h>
 
 #define LISTENQ 1024
 #define FRAMES_PER_BUFFER 512
@@ -12,25 +13,25 @@ enum Identiy {IDENT_NONE, IDENT_AUDIENCE, IDENT_PROVIDER};
 
 struct UserData {
     int id = -1;                     // server give
-    std::string name = "";           // user provided
+    char name[16];           // user provided
     Identiy identity = IDENT_NONE;   // 0: not set, 1: audience, 2: provider
 };
 
 std::string to_string(const UserData& d) {
-    return  "name: " + d.name + "\n" + 
+    return  "name: " + std::string(d.name) + "\n" + 
             "identity: " + std::to_string(int(d.identity)) + "\n";
 }
 
 struct RoomData {
     int room_id;
-    std::string room_name;
+    char room_name[16];
     UserData host_user;
     int running_port;
 };
 
 std::string to_string(const RoomData& d) {
     return  "room_id: " + std::to_string(d.room_id) + "\n" + 
-            "room_name: " + d.room_name + "\n" +
+            "room_name: " + std::string(d.room_name) + "\n" +
             "running_port:" + std::to_string(d.running_port) + "\n" +
             "host_user: \n" + to_string(d.host_user) + "\n";
 }
@@ -50,7 +51,7 @@ struct Command{
     CommandType type;
     UserData user; // store user data for host information
     int room_id; // for audience to JOIN_ROOM
-    std::string room_name; // for host to CREATE_ROOM
+    char room_name[16]; // for host to CREATE_ROOM
 };
 
 void serialize_UserData(const UserData &obj, char *buffer) {

@@ -51,12 +51,12 @@ class CentralServer {
         RoomData createRoom(std::string room_name, UserData host) {
             RoomData room;
             room.room_id = room_id_counter++;
-            room.room_name = room_name;
+            strcpy(room.room_name, room_name.c_str());
             room.host_user = host;
             room.running_port = SERV_PORT + 8 * room.room_id; // 8 ports for a room server
             all_rooms.push_back(room);
 
-            printf("Central Server: [%s] Room created, the host is [%s].\n", room_name.c_str(), host.name.c_str());
+            printf("Central Server: [%s] Room created, the host is [%s].\n", room_name.c_str(), host.name);
 
             return room;
         }

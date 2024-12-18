@@ -121,11 +121,11 @@ class RoomServer {
             
             if(user.identity == IDENT_AUDIENCE){
                 printf("Accept audience\n");
-                printf("id : %d, name : %s\n\n", user.id, user.name.c_str());
+                printf("id : %d, name : %s\n\n", user.id, user.name);
 
                 ClientData client;
                 client.id = user.id;
-                strcpy(client.name, user.name.c_str());
+                strcpy(client.name, user.name);
                 client.is_online = true;
                 client.connfd = connfd;
                 client.identity = IDENT_AUDIENCE;
@@ -143,7 +143,7 @@ class RoomServer {
 
                 ClientData client;
                 client.id = user.id;
-                strcpy(client.name, user.name.c_str());
+                strcpy(client.name, user.name);
                 client.is_online = true;
                 client.connfd = connfd;
                 client.identity = IDENT_PROVIDER;

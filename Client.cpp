@@ -110,15 +110,15 @@ inline void Client::Print_commands() {
 void Client::Create_and_join_room(const std::string& room_name) {
     Command cmd;
     cmd.type = CREATE_ROOM;
-    cmd.room_name = room_name;
+    strcpy(cmd.room_name, room_name.c_str());
     cmd.user.id = -1; //TODO: id is not implemented and have no usage.
-    cmd.user.name = username;
+    strcpy(cmd.user.name, username.c_str());
     cmd.user.identity = IDENT_PROVIDER;
 
     char buffer[BUFFER_SIZE];
     //Send request    
     serialize_Command(cmd, buffer);
-    if(write(connection_fd, buffer, sizeof(Command)) < 0) {
+    if(write(connection_fd, buffer, sizeof(buffer)) < 0) {
         std::cerr << "[Client][Error] Create_and_join_room(): failed to send request to server\n";
         perror("[Client][Error] Create_and_join_room()");
         return;
