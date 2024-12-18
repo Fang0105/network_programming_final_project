@@ -137,7 +137,7 @@ void Client::Create_and_join_room(const std::string& room_name) {
     deserialize_RoomData(buffer, new_room);
     cout << "[Client][Debug] Create_and_join_room(): Received response\n" << to_string(new_room);
 
-    if(!Join_room_by_port(new_room.running_port)) {
+    if(!Join_room_by_port(new_room.running_port, IDENT_PROVIDER)) {
         std::cerr << "[Client][Error] Create_and_join_room(): failed to join new room\n";
     }
 }
@@ -181,14 +181,14 @@ void Client::Request_room_list() {
 
 inline void Client::Print_room_list() {
     cout << " # \tRoom Name\tHost\n";
-    cout << "-------------------------";
+    cout << "-------------------------\n";
     for(int i = 0; i < rooms.size(); i++) {
         cout << std::setfill(' ') << std::setw(3) << i;
-        cout << "\t" << rooms[i].room_name << "\t" << rooms[i].host_user.name << "\n\n";
+        cout << "\t" << std::string(rooms[i].room_name) << "\t" << std::string(rooms[i].host_user.name) << "\n\n";
     }
 }
 
-bool Client::Join_room_by_port(int port) {
+bool Client::Join_room_by_port(int port, Identiy user_type) {
     //Tries to connect to the room
     int new_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -196,15 +196,39 @@ bool Client::Join_room_by_port(int port) {
     bzero(&roomaddr, sizeof(roomaddr));
     roomaddr.sin_family = AF_INET;
     roomaddr.sin_addr = server_ip_addr;
-    roomaddr.sin_port = port;
+    roomaddr.sin_port = htons(port);
 
-    if(connect(new_sock_fd, (sockaddr*)&roomaddr, sizeof(roomaddr)) < 0) {
+    int tryCount = 5; //Retry every second, for maximum of tryCount times.
+    while(tryCount--) {        
+        if(connect(new_sock_fd, (sockaddr*)&roomaddr, sizeof(roomaddr)) >= 0)
+            break; //Connection succeeded
+
+        perror("Retry");
+        close(new_sock_fd);
+        new_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+        sleep(1);
+    }
+    if(tryCount < 0) {
         cout << "[Client][Warning] Join_room_by_port(): cannot connect to the room at port "<< port << "\n";
+        cout << "Cannot connect to the room at port. Please try to list rooms again.\n";
         return false;
     }
 
     Close_connetion(); //Close current connection with central server
     connection_fd = new_sock_fd; //Switch current connection to the new room;
+
+    char buffer[BUFFER_SIZE];
+    UserData user;
+    user.id = -1;
+    user.identity = user_type;
+    strcpy(user.name, username.c_str());
+    //Send user data
+    serialize_UserData(user, buffer);
+    if(write(connection_fd, buffer, sizeof(UserData)) < 0) {
+        std::cerr << "[Client][Error] Join_room_by_port(): failed to send user data to server\n";
+        perror("[Client][Error] Join_room_by_port()");
+        return false;
+    }
 
     Room_loop();
 
@@ -221,12 +245,31 @@ bool Client::Join_room(int target_room) {
         return false;
     }
 
-    return Join_room_by_port(target_room_data.running_port);
+    return Join_room_by_port(target_room_data.running_port, IDENT_AUDIENCE);
 }
 
 void Client::Room_loop() {
-    std::cout << "Fuck byebye room\n";
+    std::string input;
+    while(true) {
+        cin >> input;
+        if(write(connection_fd, input.c_str(), input.size()) < 0) {
+            std::cerr << "[Client][Error] Room_loop(): failed to send message\n";
+            perror("[Client][Error] Room_loop()");
+            return;
+        }
+    }
 }
+
+void Client::Handle_message() {
+    fd_set set, rset;
+    FD_ZERO(&set);
+    FD_SET(&connection_fd, );
+}
+
+void Send_audio();
+void Send_video();
+void Receive_audio();
+void Receive_video();
 
 int Client::Run() {
     set_scr();

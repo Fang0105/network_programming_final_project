@@ -45,7 +45,7 @@ class RoomServer {
         int receive_audio_port; // accept_user_port + 2
         int send_video_port;    // accept_user_port + 3
         int send_audio_port;    // accept_user_port + 4
-        int message_listen_port; // accept_user_port + 5
+        //int message_listen_port; // accept_user_port + 5
         int test_port; // accept_user_port + 6
 
         int maxfdp1 = 0;
@@ -100,7 +100,7 @@ class RoomServer {
             this->receive_audio_port = port + 2;
             this->send_video_port = port + 3;
             this->send_audio_port = port + 4;
-            this->message_listen_port = port + 5;
+            //this->message_listen_port = port + 5; //merged with accept_user_port
             this->test_port = port + 6;
             this->addr = addr;
 

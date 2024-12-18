@@ -26,9 +26,16 @@ class Client {
     void Request_room_list();
     void Print_room_list();
 
-    bool Join_room_by_port(int port);
+    bool Join_room_by_port(int port, Identiy user_type);
     bool Join_room(int target_room);
     void Room_loop();
+
+    //Room Server Functions
+    void Handle_message();
+    void Send_audio();
+    void Send_video();
+    void Receive_audio();
+    void Receive_video();
 
     public:
     Client(const std::string server_ip_addr);
