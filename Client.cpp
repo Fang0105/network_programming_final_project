@@ -23,6 +23,15 @@ inline int max(int a, int b) {
     return (a > b) ? a : b;
 }
 
+
+void handle_sigchld(int signo) {
+    pid_t pid;
+    int stat;
+    while ((pid = waitpid(-1, &stat, WNOHANG)) > 0); // Reap zombie processes
+    return;
+}
+
+
 Client::Client(const std::string server_ip_addr) :
     connection_fd(-1) {
     inet_pton(AF_INET, server_ip_addr.c_str(), &(this->server_ip_addr));
@@ -260,10 +269,62 @@ void Client::Room_loop() {
     }
 }
 
+// void Client::Handle_message() {
+//     fd_set set, rset;
+//     FD_ZERO(&set);
+//     FD_SET(&connection_fd, );
+// }
+
 void Client::Handle_message() {
     fd_set set, rset;
     FD_ZERO(&set);
-    FD_SET(&connection_fd, );
+    FD_SET(connection_fd, &set);
+
+    struct timeval timeout;
+    timeout.tv_sec = 1;  // timeout
+    timeout.tv_usec = 0;
+
+    while (true) {
+
+        rset = set;
+
+        int ready = select(connection_fd + 1, &rset, NULL, NULL, &timeout);
+
+        if (ready < 0) {
+            // Error in select
+            perror("[Client][Error] Handle_message(): select() failed");
+            break;
+        }
+        else if (ready == 0) {
+            // Timeout
+            continue;
+        }
+        else {
+            // Data is available to be read
+            if (FD_ISSET(connection_fd, &rset)) {
+                char buffer[BUFFER_SIZE];
+                ssize_t bytes_read = read(connection_fd, buffer, sizeof(buffer) - 1);
+
+                if (bytes_read > 0) {
+                    
+                    buffer[bytes_read] = '\0';
+                    std::cout << "Received message: " << buffer << std::endl;
+
+                }
+                else if (bytes_read == 0) {         
+
+                    std::cout << "[Client] Connection closed by server" << std::endl;
+                    break;
+                    
+                }
+                else {
+                    // Error
+                    perror("[Client][Error] Handle_message(): read() failed");
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void Send_audio();
