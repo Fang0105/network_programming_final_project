@@ -12,9 +12,6 @@
 #include <thread>
 #include "structures.h"
 
-#define LISTENQ 1024
-#define FRAMES_PER_BUFFER 512
-
 struct Client{
     int id;
 
@@ -66,6 +63,7 @@ class RoomServer {
 
         RoomServer(struct sockaddr_in addr, int port) {
             accept_user_listen_socket = socket(AF_INET, SOCK_STREAM, 0);
+            printf("accept_user_listen_socket : %d\n", accept_user_listen_socket);
 
             addr.sin_port = htons(port);
 
@@ -77,10 +75,10 @@ class RoomServer {
             this->message_listen_port = port + 5;
             this->addr = addr;
 
-            bind(accept_user_listen_socket, (sockaddr*) &this->addr, sizeof(this->addr));
+            int bind_status = bind(accept_user_listen_socket, (sockaddr*) &this->addr, sizeof(this->addr));
+            printf("bind status : %d\n", bind_status);
             
             maxfdp1 = std::max(maxfdp1, accept_user_listen_socket + 1);
-
         }
 
         void AcceptUser(UserData user, sockaddr_in user_addr, int connfd) {
@@ -214,6 +212,10 @@ class RoomServer {
 
 
         void receiveUserAndReceiveAndSendMessage(){
+
+            printf("running on port : %d\n", accept_user_port);
+
+
             printf("Start receiveing user\n");
 
             listen(accept_user_listen_socket, LISTENQ);
@@ -234,7 +236,7 @@ class RoomServer {
                     recv(accept_user_accept_socket, buffer, sizeof(buffer), 0);
 
                     UserData user;
-                    deserialize(buffer, user);
+                    deserialize_UserData(buffer, user);
 
                     AcceptUser(user, cliaddr, accept_user_accept_socket);
 
