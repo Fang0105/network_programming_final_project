@@ -4,8 +4,143 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <iostream>
+#include <vector>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <atomic>
+#include <opencv2/opencv.hpp>
+
+std::queue<cv::Mat> frameQueue;
+std::mutex queueMutex;
+std::condition_variable frameCondVar;
+std::atomic<bool> stopFlag(false);
 
 #define SERV_PORT 10000
+
+fd_set master_set, rset;
+int maxfdp1;
+
+void handle_message(int sockfd){
+    printf("handle message\n");
+
+    while(true){
+        rset = master_set;
+        select(maxfdp1, &rset, NULL, NULL, NULL);
+
+        if(FD_ISSET(sockfd, &rset)){
+            char buffer[1024];
+            int status = recv(sockfd, buffer, sizeof(buffer), 0);
+            if(status == 0){
+                printf("Server close connection\n");
+                break;
+            }
+            printf("%s\n", buffer);
+        }else if(FD_ISSET(fileno(stdin), &rset)){
+            char buffer[1024];
+            fgets(buffer, sizeof(buffer), stdin);
+            int status = send(sockfd, buffer, strlen(buffer), 0);
+            if(status < 0){
+                printf("Error send message\n");
+            }
+        }
+    }
+}
+
+void displayFrames() {
+
+    printf("start display frames\n");
+
+
+    while (!stopFlag) {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        frameCondVar.wait(lock, [] { return !frameQueue.empty() || stopFlag; });
+
+        while (!frameQueue.empty()) {
+            cv::Mat frame = frameQueue.front();
+            frameQueue.pop();
+            lock.unlock();
+
+            cv::imshow("Received Frame", frame);
+            if (cv::waitKey(1) == 27) {  // Stop on ESC key
+                stopFlag = true;
+                return;
+            }
+
+            lock.lock();
+        }
+    }
+}
+
+void receiveVideo(RoomData room) {
+    int videoSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (videoSocket < 0) {
+        std::cerr << "Failed to create socket." << std::endl;
+        return;
+    }
+
+    struct sockaddr_in videoAddr = {};
+    videoAddr.sin_family = AF_INET;
+    videoAddr.sin_port = htons(room.running_port + 3);
+    videoAddr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(videoSocket, (struct sockaddr *)&videoAddr, sizeof(videoAddr)) < 0) {
+        std::cerr << "Failed to bind socket." << std::endl;
+        close(videoSocket);
+        return;
+    }
+
+    std::unordered_map<uint32_t, std::vector<std::vector<uchar>>> frameChunks;
+    std::unordered_map<uint32_t, size_t> frameChunkCounts;
+
+    while (!stopFlag) {
+        std::vector<uchar> packet(BUFFER_SIZE);
+        ssize_t receivedSize = recvfrom(videoSocket, packet.data(), BUFFER_SIZE, 0, nullptr, nullptr);
+        if (receivedSize < 0) {
+            std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
+            continue;
+        }
+
+        uint32_t frameID = ntohl(*reinterpret_cast<uint32_t*>(&packet[0]));
+        uint16_t chunkNumber = ntohs(*reinterpret_cast<uint16_t*>(&packet[4]));
+        uint16_t totalChunks = ntohs(*reinterpret_cast<uint16_t*>(&packet[6]));
+
+        std::vector<uchar> chunk(packet.begin() + HEADER_SIZE, packet.begin() + receivedSize);
+
+        frameChunks[frameID].resize(totalChunks);
+        frameChunks[frameID][chunkNumber] = std::move(chunk);
+        frameChunkCounts[frameID]++;
+
+        if (frameChunkCounts[frameID] == totalChunks) {
+            std::vector<uchar> completeBuffer;
+            for (const auto& chunk : frameChunks[frameID]) {
+                completeBuffer.insert(completeBuffer.end(), chunk.begin(), chunk.end());
+            }
+
+            cv::Mat frame = cv::imdecode(completeBuffer, cv::IMREAD_COLOR);
+            if (!frame.empty()) {
+                std::unique_lock<std::mutex> lock(queueMutex);
+                frameQueue.push(frame);
+                frameCondVar.notify_one();
+            }
+
+            frameChunks.erase(frameID);
+            frameChunkCounts.erase(frameID);
+        }
+    }
+
+    close(videoSocket);
+}
+
+
+
+
+
+
+
+
+
 
 int main(){
     
@@ -21,12 +156,12 @@ int main(){
 
     UserData user;
     user.id = 16666;
-    user.name = "nody_client";
+    strcpy(user.name, "nody_client");
     user.identity = IDENT_AUDIENCE;
 
     Command command;
     command.type = LIST_ROOM;
-    command.room_name = "nody_haha_room";
+    strcpy(command.room_name, "nody_haha_room");
     command.user = user;
 
     char buffer[sizeof(Command)];
@@ -48,7 +183,7 @@ int main(){
         RoomData room;
         deserialize_RoomData(recv_buffer_RoomData, room);
         all_rooms.push_back(room);
-        printf("(%d) room name : %s, host name : %s, running port : %d\n", i+1, room.room_name.c_str(), room.host_user.name.c_str(), room.running_port);
+        printf("(%d) room name : %s, host name : %s, running port : %d\n", i+1, room.room_name, room.host_user.name, room.running_port);
     }
 
     int choose_room_id;
@@ -88,33 +223,18 @@ int main(){
 
     send(sockfd, user_buffer, sizeof(user_buffer), 0);
 
-    fd_set master_set, rset;
+    
     FD_ZERO(&master_set);
     FD_SET(sockfd, &master_set);
     FD_SET(fileno(stdin), &master_set);
-    int maxfdp1 = std::max(sockfd, fileno(stdin)) + 1;
+    maxfdp1 = std::max(sockfd, fileno(stdin)) + 1;
 
-    while(true){
-        rset = master_set;
-        select(maxfdp1, &rset, NULL, NULL, NULL);
+    std::thread messageThread(handle_message, sockfd);
+    std::thread videoThread(receiveVideo, all_rooms[choose_room_id - 1]);
+    displayFrames();
 
-        if(FD_ISSET(sockfd, &rset)){
-            char buffer[1024];
-            int status = recv(sockfd, buffer, sizeof(buffer), 0);
-            if(status == 0){
-                printf("Server close connection\n");
-                break;
-            }
-            printf("%s\n", buffer);
-        }else if(FD_ISSET(fileno(stdin), &rset)){
-            char buffer[1024];
-            fgets(buffer, sizeof(buffer), stdin);
-            int status = send(sockfd, buffer, strlen(buffer), 0);
-            if(status < 0){
-                printf("Error send message\n");
-            }
-        }
-    }
+    messageThread.join();
+    videoThread.join();
 
 
     
