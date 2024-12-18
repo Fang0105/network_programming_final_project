@@ -365,9 +365,10 @@ void Client::Receive_video() {
 
     sockaddr_in vid_addr;
     bzero(&vid_addr, sizeof(vid_addr));
+    getsockname(connection_fd, (sockaddr*)&vid_addr, NULL);
     vid_addr.sin_family = AF_INET;
     vid_addr.sin_addr = server_ip_addr;
-    vid_addr.sin_port = htons(connection_port + 3);    
+    vid_addr.sin_port = htons(ntohs(vid_addr.sin_port) + 1);    
 
     if (bind(sockfd, (struct sockaddr *)&vid_addr, sizeof(vid_addr)) < 0) {
         std::cerr << "Failed to bind socket." << std::endl;
