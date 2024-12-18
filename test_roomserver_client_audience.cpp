@@ -28,7 +28,7 @@ int main(){
     user.identity = AUDIENCE;
 
     char buffer[sizeof(UserData)];
-    serialize(user, buffer);
+    serialize_UserData(user, buffer);
 
     send(sockfd, buffer, sizeof(buffer), 0);
 
