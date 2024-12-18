@@ -275,57 +275,40 @@ void Client::Room_loop() {
 //     FD_SET(&connection_fd, );
 // }
 
+
 void Client::Handle_message() {
+
     fd_set set, rset;
     FD_ZERO(&set);
-    FD_SET(connection_fd, &set);
+    FD_SET(connection_fd , &set);
+    FD_SET(fileno(stdin), &set);
+    int maxfdp1 = std::max(connection_fd, fileno(stdin)) + 1;
 
-    struct timeval timeout;
-    timeout.tv_sec = 1;  // timeout
-    timeout.tv_usec = 0;
-
-    while (true) {
-
+    while(true){
         rset = set;
+        select(maxfdp1, &rset, NULL, NULL, NULL);
 
-        int ready = select(connection_fd + 1, &rset, NULL, NULL, &timeout);
-
-        if (ready < 0) {
-            // Error in select
-            perror("[Client][Error] Handle_message(): select() failed");
-            break;
-        }
-        else if (ready == 0) {
-            // Timeout
-            continue;
-        }
-        else {
-            // Data is available to be read
-            if (FD_ISSET(connection_fd, &rset)) {
-                char buffer[BUFFER_SIZE];
-                ssize_t bytes_read = read(connection_fd, buffer, sizeof(buffer) - 1);
-
-                if (bytes_read > 0) {
-                    
-                    buffer[bytes_read] = '\0';
-                    std::cout << "Received message: " << buffer << std::endl;
-
-                }
-                else if (bytes_read == 0) {         
-
-                    std::cout << "[Client] Connection closed by server" << std::endl;
-                    break;
-                    
-                }
-                else {
-                    // Error
-                    perror("[Client][Error] Handle_message(): read() failed");
-                    break;
-                }
+        if(FD_ISSET(connection_fd, &rset)){
+            char buffer[1024];
+            int status = recv(connection_fd, buffer, sizeof(buffer), 0);
+            if(status == 0){
+                printf("Server close connection\n");
+                break;
+            }
+            printf("%s\n", buffer);
+        }else if(FD_ISSET(fileno(stdin), &rset)){
+            char buffer[1024];
+            fgets(buffer, sizeof(buffer), stdin);
+            int status = send(connection_fd, buffer, strlen(buffer), 0);
+            if(status < 0){
+                printf("Error send message\n");
             }
         }
     }
+
 }
+
+
 
 void Send_audio();
 void Send_video();
