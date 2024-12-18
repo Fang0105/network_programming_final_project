@@ -3,6 +3,7 @@
 #include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <cstring>
 
 #define SERV_PORT 1000
 

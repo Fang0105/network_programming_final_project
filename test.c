@@ -1,9 +1,12 @@
+/* discard */
+
 #include "unp.h"
 #include <string.h>
 
 #define BUILD_A_NEW_ROOM "A"
 #define LIST_ALL_ROOMS "B"
 #define JOIN_A_ROOM "C"
+
 
 
 int main(int argc, char **argv){

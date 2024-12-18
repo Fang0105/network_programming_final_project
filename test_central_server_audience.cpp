@@ -61,6 +61,8 @@ int main(){
     while((c = getchar()) != '\n' && c != EOF);
 
 
+
+
     close(sockfd);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);

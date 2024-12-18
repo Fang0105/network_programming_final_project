@@ -2,16 +2,18 @@
 #define __FINAL_PROJECT_STRUCTURES__
 
 #include <string>
+#include <cstring>
 
 #define LISTENQ 1024
 #define FRAMES_PER_BUFFER 512
+#define SERV_PORT 10000
 
-enum Identiy {ERROR, AUDIENCE, PROVIDER};
+enum Identiy {IDENT_ERROR, IDENT_AUDIENCE, IDENT_PROVIDER};
 
 struct UserData {
     int id;                 // server give
     std::string name;       // user provided
-    Identiy identity;       // 1 : audience 2 : provider 0 : not set
+    Identiy identity;       // 1 : audience, 2 : provider, 0 : not set
 };
 
 struct RoomData {
@@ -21,14 +23,14 @@ struct RoomData {
     int running_port;
 };
 
-
-void serialize_UserData(const UserData &obj, char *buffer) {
-    memcpy(buffer, &obj, sizeof(UserData));
-}
-
-void deserialize_UserData(const char *buffer, UserData &obj) {
-    memcpy(&obj, buffer, sizeof(UserData));
-}
+struct ClientData {
+    int id;
+    char name[1024];
+    bool is_online;
+    int connfd;
+    Identiy identity;
+    sockaddr_in address;
+};
 
 enum CommandType {CREATE_ROOM, LIST_ROOM, JOIN_ROOM};
 
@@ -38,6 +40,14 @@ struct Command{
     int room_id; // for audience to JOIN_ROOM
     std::string room_name; // for host to CREATE_ROOM
 };
+
+void serialize_UserData(const UserData &obj, char *buffer) {
+    memcpy(buffer, &obj, sizeof(UserData));
+}
+
+void deserialize_UserData(const char *buffer, UserData &obj) {
+    memcpy(&obj, buffer, sizeof(UserData));
+}
 
 void serialize_Command(const Command &obj, char *buffer) {
     memcpy(buffer, &obj, sizeof(Command));
@@ -55,16 +65,12 @@ void deserialize_RoomData(const char *buffer, RoomData &obj) {
     memcpy(&obj, buffer, sizeof(RoomData));
 }
 
-struct Number {
-    int num;
-};
-
-void serialize_Number(const Number &obj, char *buffer) {
-    memcpy(buffer, &obj, sizeof(Number));
+void serialize_Number(int number, char *buffer) {
+    memcpy(buffer, &number, sizeof(int));
 }
 
-void deserialize_Number(const char *buffer, Number &obj) {
-    memcpy(&obj, buffer, sizeof(Number));
+void deserialize_Number(const char *buffer, int& number) {
+    memcpy(&number, buffer, sizeof(int));
 }
 
 #endif
