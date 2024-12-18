@@ -2,10 +2,10 @@
 #include "structures.h"
 #include <sys/wait.h>
 #include <sys/socket.h>
-#include <netinet/in.h> 
+#include <netinet/in.h>
 #include <iostream>
 
-#define SERV_PORT 1000
+#define SERV_PORT 10000
 
 int main(){
     
@@ -14,21 +14,61 @@ int main(){
     sockaddr_in servaddr;
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(10008);
+	servaddr.sin_port = htons(SERV_PORT);
 	inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
 
 	connect(sockfd, (sockaddr*) &servaddr, sizeof(servaddr));
 
     UserData user;
-    user.id = 100;
-    //user.name = "Nody_provider";
-    std::cin >> user.name;
+    user.id = 1;
+    user.name = "nody";
     user.identity = PROVIDER;
 
-    char buffer[sizeof(UserData)];
-    serialize_UserData(user, buffer);
+    Command command;
+    command.type = CREATE_ROOM;
+    command.room_name = "nody_haha_room";
+    command.user = user;
+
+    char buffer[sizeof(Command)];
+    serialize_Command(command, buffer);
 
     send(sockfd, buffer, sizeof(buffer), 0);
+
+
+    char recv_buffer[sizeof(RoomData)];
+    recv(sockfd, recv_buffer, sizeof(recv_buffer), 0);
+
+    RoomData room;
+    deserialize_RoomData(recv_buffer, room);
+
+    close(sockfd);
+    
+    // sleep(10);
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    //sockaddr_in servaddr;
+    // sockaddr_in servaddr;
+	bzero(&servaddr, sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(room.running_port);
+	inet_pton(AF_INET, "127.0.0.1", &servaddr.sin_addr);
+    
+    while(true){
+        int status = connect(sockfd, (sockaddr*) &servaddr, sizeof(servaddr));
+        if(status == 0){
+            printf("Connect to room server success\n");
+            break;
+        }else{
+            // sockaddr_in servaddr;
+            sockfd = socket(AF_INET, SOCK_STREAM, 0);
+            //sleep(1);  // 重試間隔
+        }
+    }
+
+    char user_buffer[sizeof(UserData)];
+    serialize_UserData(user, user_buffer);
+
+    send(sockfd, user_buffer, sizeof(user_buffer), 0);
 
     fd_set master_set, rset;
     FD_ZERO(&master_set);
@@ -57,6 +97,10 @@ int main(){
             }
         }
     }
+	
+    
+    
 
 
+    
 }
