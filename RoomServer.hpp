@@ -284,7 +284,11 @@ class RoomServer {
 
                 for(const ClientData& client : all_clients){
                     if(client.is_online && client.identity == IDENT_AUDIENCE){
-                        sendto(send_video_socket, buffer, sizeof(buffer), 0, (sockaddr*) &client.address, sizeof(client.address));
+                        sockaddr_in tem = client.address;
+                        int x = ntohs(client.address.sin_port) + 1;
+                        printf("send to : %d\n", x);
+                        tem.sin_port = htons(ntohs(client.address.sin_port) + 1);
+                        sendto(send_video_socket, buffer, sizeof(buffer), 0, (sockaddr*) &tem, sizeof(tem));
                     }
                 }
             }
