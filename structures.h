@@ -5,9 +5,14 @@
 #include <cstring>
 #include <netinet/in.h>
 
-#define LISTENQ 1024
-#define FRAMES_PER_BUFFER 512
-#define SERV_PORT 10000
+const int LISTENQ = 1024;
+const int SERV_PORT = 10000;
+
+const int CHUNK_SIZE = 1400;
+const int FRAMES_PER_BUFFER = 512;
+const int HEADER_SIZE = 8;
+const int SAMPLE_RATE = 44100;
+const int BUFFER_SIZE = 1400;
 
 enum Identiy {IDENT_NONE, IDENT_AUDIENCE, IDENT_PROVIDER};
 

@@ -258,7 +258,7 @@ class RoomServer {
                 printf("Bind receive video socket\n");
             }
 
-            float buffer[FRAMES_PER_BUFFER];
+            float buffer[BUFFER_SIZE];
             while(!ready_to_end){
                 printf("waiting video\n");
                 ssize_t receivedSize = recvfrom(receive_video_socket, buffer, sizeof(buffer), 0, nullptr, nullptr);

@@ -3,14 +3,24 @@
 
 #include "structures.h"
 #include <vector>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <unordered_map>
 
 class Client {
     private:
     in_addr server_ip_addr;
-    std::string username;
+    UserData user_data;
     int connection_fd;
+    int connection_port;
     std::vector<RoomData> rooms;
-    const int BUFFER_SIZE = 4096;
+
+    //For video & audio
+    std::queue<cv::Mat> frameQueue;
+    std::mutex queueMutex;
+    std::condition_variable frameCondVar;
 
     //General
     void Close_connetion();
@@ -36,6 +46,8 @@ class Client {
     void Send_video();
     void Receive_audio();
     void Receive_video();
+    void Display_frames();
+    bool Check_frame_queue_empty();
 
     public:
     Client(const std::string server_ip_addr);

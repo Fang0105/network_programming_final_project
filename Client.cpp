@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <iostream>
 #include <iomanip>
+#include <opencv2/opencv.hpp>
 
 using std::cin;
 using std::cout;
@@ -111,9 +112,8 @@ void Client::Create_and_join_room(const std::string& room_name) {
     Command cmd;
     cmd.type = CREATE_ROOM;
     strcpy(cmd.room_name, room_name.c_str());
-    cmd.user.id = -1; //TODO: id is not implemented and have no usage.
-    strcpy(cmd.user.name, username.c_str());
-    cmd.user.identity = IDENT_PROVIDER;
+    user_data.identity = IDENT_PROVIDER;
+    cmd.user = user_data;
 
     char buffer[BUFFER_SIZE];
     //Send request    
@@ -196,14 +196,13 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
     bzero(&roomaddr, sizeof(roomaddr));
     roomaddr.sin_family = AF_INET;
     roomaddr.sin_addr = server_ip_addr;
-    roomaddr.sin_port = htons(port);
+    roomaddr.sin_port = htons(port);    
 
     int tryCount = 5; //Retry every second, for maximum of tryCount times.
     while(tryCount--) {        
         if(connect(new_sock_fd, (sockaddr*)&roomaddr, sizeof(roomaddr)) >= 0)
             break; //Connection succeeded
 
-        perror("Retry");
         close(new_sock_fd);
         new_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
         sleep(1);
@@ -216,14 +215,12 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
 
     Close_connetion(); //Close current connection with central server
     connection_fd = new_sock_fd; //Switch current connection to the new room;
+    connection_port = port;
 
     char buffer[BUFFER_SIZE];
-    UserData user;
-    user.id = -1;
-    user.identity = user_type;
-    strcpy(user.name, username.c_str());
+    user_data.identity = user_type;
     //Send user data
-    serialize_UserData(user, buffer);
+    serialize_UserData(user_data, buffer);
     if(write(connection_fd, buffer, sizeof(UserData)) < 0) {
         std::cerr << "[Client][Error] Join_room_by_port(): failed to send user data to server\n";
         perror("[Client][Error] Join_room_by_port()");
@@ -249,27 +246,158 @@ bool Client::Join_room(int target_room) {
 }
 
 void Client::Room_loop() {
-    std::string input;
-    while(true) {
-        cin >> input;
-        if(write(connection_fd, input.c_str(), input.size()) < 0) {
-            std::cerr << "[Client][Error] Room_loop(): failed to send message\n";
-            perror("[Client][Error] Room_loop()");
-            return;
+    if(user_data.identity == IDENT_AUDIENCE) std::thread videoThread(Receive_video);
+    if(user_data.identity == IDENT_PROVIDER) std::thread audioThread(Send_video);
+    if(user_data.identity == IDENT_AUDIENCE) Display_frames();
+}
+
+void Client::Handle_message() {
+    /*fd_set set, rset;
+    FD_ZERO(&set);
+    FD_SET(&connection_fd, );*/
+}
+
+void Client::Send_audio() {
+
+}
+
+void Client::Send_video() {
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    sockaddr_in vid_addr;
+    bzero(&vid_addr, sizeof(vid_addr));
+    vid_addr.sin_family = AF_INET;
+    vid_addr.sin_addr = server_ip_addr;
+    vid_addr.sin_port = htons(connection_port + 1);    
+
+    cv::VideoCapture cap;
+    if (!cap.isOpened()) {
+        std::cerr << "Cannot open the camera" << std::endl;
+        return;
+    }
+
+    uint32_t frameID = 0;
+    while (true) {
+        cv::Mat frame;
+        cap >> frame;
+        if (frame.empty()) {
+            std::cerr << "Failed to capture frame" << std::endl;
+            break;
+        }
+
+        cv::resize(frame, frame, cv::Size(640, 480));
+        std::vector<int> compressionParams = {cv::IMWRITE_JPEG_QUALITY, 50};
+        std::vector<uchar> buffer;
+        cv::imencode(".jpg", frame, buffer, compressionParams);
+
+        frameID++;
+        size_t totalSize = buffer.size();
+        size_t chunks = (totalSize + CHUNK_SIZE - HEADER_SIZE - 1) / (CHUNK_SIZE - HEADER_SIZE);
+
+        for (size_t i = 0; i < chunks; ++i) {
+            size_t start = i * (CHUNK_SIZE - HEADER_SIZE);
+            size_t end = std::min(start + (CHUNK_SIZE - HEADER_SIZE), totalSize);
+            size_t chunkSize = end - start;
+
+            std::vector<uchar> packet(HEADER_SIZE + chunkSize);
+            uint32_t* pFrameID = reinterpret_cast<uint32_t*>(&packet[0]);
+            uint16_t* pChunkNumber = reinterpret_cast<uint16_t*>(&packet[4]);
+            uint16_t* pTotalChunks = reinterpret_cast<uint16_t*>(&packet[6]);
+
+            *pFrameID = htonl(frameID);
+            *pChunkNumber = htons(i);
+            *pTotalChunks = htons(chunks);
+
+            std::copy(buffer.begin() + start, buffer.begin() + end, packet.begin() + HEADER_SIZE);
+
+            if (sendto(sockfd, packet.data(), packet.size(), 0, (struct sockaddr*)&vid_addr, sizeof(vid_addr)) < 0) {
+                std::cerr << "Failed to send chunk " << i + 1 << "/" << chunks << ": " << strerror(errno) << std::endl;
+            }
+        }
+    }
+
+    close(sockfd);
+}
+
+void Client::Receive_audio() {
+
+}
+
+void Client::Receive_video() {
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    sockaddr_in vid_addr;
+    bzero(&vid_addr, sizeof(vid_addr));
+    vid_addr.sin_family = AF_INET;
+    vid_addr.sin_addr = server_ip_addr;
+    vid_addr.sin_port = htons(connection_port + 1);    
+
+    if (bind(sockfd, (struct sockaddr *)&vid_addr, sizeof(vid_addr)) < 0) {
+        std::cerr << "Failed to bind socket." << std::endl;
+        close(sockfd);
+        return;
+    }
+
+    std::unordered_map<uint32_t, std::vector<std::vector<uchar>>> frameChunks;
+    std::unordered_map<uint32_t, size_t> frameChunkCounts;
+
+    while (true) {
+        std::vector<uchar> packet(BUFFER_SIZE);
+        ssize_t receivedSize = recvfrom(sockfd, packet.data(), BUFFER_SIZE, 0, nullptr, nullptr);
+        if (receivedSize < 0) {
+            std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
+            continue;
+        }
+
+        uint32_t frameID = ntohl(*reinterpret_cast<uint32_t*>(&packet[0]));
+        uint16_t chunkNumber = ntohs(*reinterpret_cast<uint16_t*>(&packet[4]));
+        uint16_t totalChunks = ntohs(*reinterpret_cast<uint16_t*>(&packet[6]));
+
+        std::vector<uchar> chunk(packet.begin() + HEADER_SIZE, packet.begin() + receivedSize);
+
+        frameChunks[frameID].resize(totalChunks);
+        frameChunks[frameID][chunkNumber] = std::move(chunk);
+        frameChunkCounts[frameID]++;
+
+        if (frameChunkCounts[frameID] == totalChunks) {
+            std::vector<uchar> completeBuffer;
+            for (const auto& chunk : frameChunks[frameID]) {
+                completeBuffer.insert(completeBuffer.end(), chunk.begin(), chunk.end());
+            }
+
+            cv::Mat frame = cv::imdecode(completeBuffer, cv::IMREAD_COLOR);
+            if (!frame.empty()) {
+                std::unique_lock<std::mutex> lock(queueMutex);
+                frameQueue.push(frame);
+                frameCondVar.notify_one();
+            }
+
+            frameChunks.erase(frameID);
+            frameChunkCounts.erase(frameID);
+        }
+    }
+
+    close(sockfd);
+}
+
+void Client::Display_frames() {
+    while (true) {
+        std::unique_lock<std::mutex> lock(queueMutex);
+        frameCondVar.wait(lock, Check_frame_queue_empty());
+
+        while (!frameQueue.empty()) {
+            cv::Mat frame = frameQueue.front();
+            frameQueue.pop();
+            lock.unlock();
+
+            cv::imshow("Received Frame", frame);
+
+            lock.lock();
         }
     }
 }
 
-void Client::Handle_message() {
-    fd_set set, rset;
-    FD_ZERO(&set);
-    FD_SET(&connection_fd, );
-}
-
-void Send_audio();
-void Send_video();
-void Receive_audio();
-void Receive_video();
+bool Client::Check_frame_queue_empty() { return !frameQueue.empty(); }
 
 int Client::Run() {
     set_scr();
@@ -278,7 +406,7 @@ int Client::Run() {
     std::string input;
     std::cout << "Enter your username: ";
     std::cin >> input;
-    username = input;
+    strcpy(user_data.name, input.c_str());
 
     Connect_central_server();
     Central_loop();
