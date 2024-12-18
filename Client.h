@@ -2,25 +2,38 @@
 #define __FINAL_PROJECT_CLIENT__
 
 #include "structures.h"
+#include <vector>
 
 class Client {
     private:
+    in_addr server_ip_addr;
     UserData data;
+    int connection_fd;
+    std::vector<RoomData> rooms;
+
+    //General
+    void Close_connetion();
+
+    //Central Server Functions
+    void Connect_central_server();
+    void Central_loop();    
+
+    void Print_commands();
+
+    void Request_room_list();
+    void Print_room_list();
+
+    int Build_room();
+
+    //Room Server Functions
+    bool Join_room(int target_room);
+    void Room_loop();
 
     public:
-    Client() = default;
-    ~Client() = default;
+    Client(const std::string server_ip_addr);
+    ~Client();
 
-    void set_name(const std::string& name) { data.name = name; }
-    void set_id(int id) {data.id = id; }
-    void set_identity(Identiy identity ) { data.identity = identity; }
-
-    std::string get_name() {return data.name ;}
-    int         get_id() {return data.id ;}
-    int         get_identity () {return data.identity ;}      
-    
-
-    UserData get_data() const { return data; }
+    int Run();
 };
 
 #endif

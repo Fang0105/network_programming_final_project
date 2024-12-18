@@ -105,7 +105,7 @@ class RoomServer {
                 FD_SET(connfd, &master_set);
 
                 maxfdp1 = std::max(maxfdp1, connfd + 1);
-            }else if(user.identity == IDENT_ERROR){
+            }else if(user.identity == IDENT_NONE){
                 printf("Error user\n");
             }else{
                 printf("Undefined user\n");

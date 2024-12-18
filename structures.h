@@ -8,12 +8,12 @@
 #define FRAMES_PER_BUFFER 512
 #define SERV_PORT 10000
 
-enum Identiy {IDENT_ERROR, IDENT_AUDIENCE, IDENT_PROVIDER};
+enum Identiy {IDENT_NONE, IDENT_AUDIENCE, IDENT_PROVIDER};
 
 struct UserData {
-    int id;                 // server give
-    std::string name;       // user provided
-    Identiy identity;       // 1 : audience, 2 : provider, 0 : not set
+    int id = -1;                     // server give
+    std::string name = "";           // user provided
+    Identiy identity = IDENT_NONE;   // 0: not set, 1: audience, 2: provider
 };
 
 struct RoomData {
