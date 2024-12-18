@@ -12,6 +12,13 @@
 #include <thread>
 #include "structures.h"
 
+void Close(int fd) {
+    if (close(fd) < 0) {
+        fprintf(stderr, "fd: %d", fd);
+        perror("close");
+    }
+}
+
 struct Client{
     int id;
 
@@ -35,16 +42,20 @@ class RoomServer {
         int send_video_port;    // accept_user_port + 3
         int send_audio_port;    // accept_user_port + 4
         int message_listen_port; // accept_user_port + 5
+        int test_port; // accept_user_port + 6
 
         int maxfdp1 = 0;
 
         sockaddr_in cliaddr;
         socklen_t clilen;
 
+        
+
         // tcp
         int accept_user_listen_socket;
         int accept_user_accept_socket;
-        int message_listen_socket;
+        // int message_listen_socket;
+        int test_socket;
 
         // udp
         int receive_video_socket;
@@ -59,7 +70,10 @@ class RoomServer {
 
         std::vector<Client> all_clients;
 
+        bool ready_to_end = false;
     public:
+
+        bool is_alive = true;
 
         RoomServer(struct sockaddr_in addr, int port) {
             accept_user_listen_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -73,12 +87,20 @@ class RoomServer {
             this->send_video_port = port + 3;
             this->send_audio_port = port + 4;
             this->message_listen_port = port + 5;
+            this->test_port = port + 6;
             this->addr = addr;
 
             int bind_status = bind(accept_user_listen_socket, (sockaddr*) &this->addr, sizeof(this->addr));
             printf("bind status : %d\n", bind_status);
-            
+
+            test_socket = socket(AF_INET, SOCK_STREAM, 0);
+            sockaddr_in test_addr = addr;
+            test_addr.sin_port = htons(test_port);
+            bind(test_socket, (sockaddr*) &test_addr, sizeof(test_addr));
+
             maxfdp1 = std::max(maxfdp1, accept_user_listen_socket + 1);
+
+            ready_to_end = false;
         }
 
         void AcceptUser(UserData user, sockaddr_in user_addr, int connfd) {
@@ -219,9 +241,11 @@ class RoomServer {
             printf("Start receiveing user\n");
 
             listen(accept_user_listen_socket, LISTENQ);
+            listen(test_socket, LISTENQ);
 
             FD_ZERO(&master_set);
             FD_SET(accept_user_listen_socket, &master_set);
+            FD_SET(test_socket, &master_set);
 
             while(true){
                 rset = master_set;
@@ -240,6 +264,9 @@ class RoomServer {
 
                     AcceptUser(user, cliaddr, accept_user_accept_socket);
 
+                }else if(FD_ISSET(test_socket, &rset)){
+                    int tem_connfd = accept(test_socket, NULL, NULL);
+                    close(tem_connfd);
                 }else{
                     int l = all_clients.size();
                     for(int i=0;i<l;i++){
@@ -258,18 +285,22 @@ class RoomServer {
                                     for(int j=0;j<all_clients.size();j++){
                                         if(all_clients[j].is_online){
                                             char send_buffer[1024];
-                                            snprintf(send_buffer, sizeof(send_buffer), "Host close connection\n");
+                                            snprintf(send_buffer, sizeof(send_buffer), "[Host left]\n");
                                             send(all_clients[j].connfd, send_buffer, sizeof(send_buffer), 0);
                                         }
                                     }
 
                                     //TODO: do end room section
+                                    ready_to_end = true;
+                                    printf("ready to end\n");
+                                    return;
                                 }
 
                             }else{
                                 recv_buffer[status] = '\0';
                                 char send_buffer[1024];
-                                snprintf(send_buffer, sizeof(send_buffer), "(%s) %s\n", all_clients[i].name, recv_buffer);
+                                snprintf(send_buffer, sizeof(send_buffer), "(%s) %s", all_clients[i].name, recv_buffer);
+                                printf("send : %s\n", send_buffer);
                                 for(int j=0;j<all_clients.size();j++){
                                     if(i != j && all_clients[j].is_online){
                                         send(all_clients[j].connfd, send_buffer, sizeof(send_buffer), 0);
@@ -283,66 +314,45 @@ class RoomServer {
                     }
                 }
             }
-
-            // while(true){
-            //     printf("waiting user\n");
-            //     clilen = sizeof(cliaddr);
-            //     accept_user_accept_socket = accept(accept_user_listen_socket, (sockaddr*)&cliaddr, &clilen);
-            //     printf("accept user!\n");
-
-            //     char buffer[sizeof(UserData)];
-            //     recv(accept_user_accept_socket, buffer, sizeof(buffer), 0);
-
-            //     UserData user;
-            //     deserialize(buffer, user);
-
-            //     AcceptUser(user, cliaddr, accept_user_accept_socket);
-            // }
         }
 
 
 
         void run(){
-            std::thread receive_user_and_message_thread(&RoomServer::receiveUserAndReceiveAndSendMessage, this);
+            // std::thread receive_user_and_message_thread(&RoomServer::receiveUserAndReceiveAndSendMessage, this);
             // std::thread audio_thread(&RoomServer::receiveAndSendAudio, this);
             // std::thread video_thread(&RoomServer::receiveAndSendVideo, this);
-            //std::thread message_thread(&RoomServer::receiveAndSendMessage, this);
+            // receive_user_and_message_thread = std::thread(&RoomServer::receiveUserAndReceiveAndSendMessage, this);
+            receiveUserAndReceiveAndSendMessage();
+            printf("22222222222\n");
+            end();
 
-            receive_user_and_message_thread.join();
+            
             // audio_thread.join();
             // video_thread.join();
-            //message_thread.join();
 
-            // listen(accept_user_listen_socket, LISTENQ);
+            
+        }
 
-            // FD_ZERO(&master_set);
-            // FD_SET(accept_user_listen_socket, &master_set);
-            // int maxfdp1 = accept_user_listen_socket + 1;
 
-            // while(true){
+        void end(){
 
-            //     rset = master_set;
-            //     select(maxfdp1, &rset, NULL, NULL, NULL);
+            printf("hahahahaahahahah\n");
 
-            //     if(FD_ISSET(accept_user_listen_socket, &rset)){
+            Close(accept_user_listen_socket);
+            // // Close(receive_video_socket);
+            // // Close(receive_audio_socket);
+            // // Close(send_video_socket);
+            // // Close(send_audio_socket);
 
-            //         clilen = sizeof(cliaddr);
-            //         accept_user_accept_socket = accept(accept_user_listen_socket, (sockaddr*)&cliaddr, &clilen);
-
-            //         char buffer[sizeof(UserData)];
-            //         recv(accept_user_accept_socket, buffer, sizeof(buffer), 0);
-
-            //         UserData user;
-            //         deserialize(buffer, user);
-
-            //         AcceptUser(user, cliaddr);
-
-            //     }else{
-
-            //     }
-
-            // }
-
+            
+            for(Client client : all_clients){
+                if(client.is_online){
+                    Close(client.connfd);
+                }
+                
+            }
+            printf("Room server end byebye byebye byebye byebye\n");
         }
 };
 

@@ -75,15 +75,25 @@ class CentralServer {
                 RoomServer room_server(server_address, room.running_port);
                 room_server.run();
 
-                //TODO: remove room from all_rooms
-                return;
+                // printf("remove room id = %d\n", room.room_id);
+                // for(int i=0;i<all_rooms_child.size();i++){
+                //     if(all_rooms_child[i].room_id == room.room_id){
+                //         printf("%d stop\n", i);
+                //         all_rooms_child.erase(all_rooms_child.begin() + i);
+                //         break;
+                //     }
+                // }
+                // printf("success remove room id = %d\n", room.room_id);
+                // printf("all rooms size = %d\n", all_rooms_child.size());
+
+
+                exit(0);
+
             } else if (pid > 0) {
-                return;
             } else {
                 printf("Central Server: Failed to create room server\n");
-                return;
             }
-
+            
         }
 
         int run() {
@@ -119,9 +129,9 @@ class CentralServer {
                         serialize_RoomData(room, send_buffer);
                         send(conn_fd, send_buffer, sizeof(send_buffer), 0);
 
-                        
-
                         runningRoom(room);
+
+                        close(conn_fd);
                     }else if(command.type == LIST_ROOM){
                         printf("Central Server: List Room\n");
                         
@@ -129,6 +139,26 @@ class CentralServer {
                         if(pid == 0){
                             close(listen_fd);
                             
+                            std::vector<RoomData> rooms_still_alive;    
+                            for(int i=0;i<all_rooms.size();i++){
+                                // test whether the room is alive
+                                int test_socket = socket(AF_INET, SOCK_STREAM, 0);
+                                sockaddr_in test_addr;
+                                bzero(&test_addr, sizeof(test_addr));
+                                test_addr.sin_family = AF_INET;
+                                test_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+                                test_addr.sin_port = htons(all_rooms[i].running_port + 6);
+                                if(connect(test_socket, (sockaddr*)&test_addr, sizeof(test_addr)) < 0){
+                                    printf("room id = %d is not alive\n", all_rooms[i].room_id);
+                                }else{
+                                    printf("room id = %d is alive\n", all_rooms[i].room_id);
+                                    rooms_still_alive.push_back(all_rooms[i]);
+                                }      
+                                close(test_socket);
+                            }
+
+                            all_rooms = rooms_still_alive;
+
                             Number all_rooms_size;
                             all_rooms_size.num = all_rooms.size();
                             char send_buffer_all_rooms_size[sizeof(Number)];
@@ -140,9 +170,6 @@ class CentralServer {
                                 serialize_RoomData(all_rooms[i], send_buffer_RoomData);
                                 send(conn_fd, send_buffer_RoomData, sizeof(send_buffer_RoomData), 0);
                             }
-
-
-
 
 
                             close(conn_fd);
