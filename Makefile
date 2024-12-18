@@ -12,7 +12,7 @@ central_server:	central_server.cpp
 		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS} 
 
 client:	Client.cpp
-		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${OPENCV_FLAGS}
+		g++ ${CppFLAGS} -g -o ${ODIR}/$@ $< ${OPENCV_FLAGS}
 
 test_roomserver_client_audience:	test_roomserver_client_audience.cpp
 		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS}

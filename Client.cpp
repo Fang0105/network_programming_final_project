@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <iostream>
 #include <iomanip>
+#include <assert.h>
 
 using std::cin;
 using std::cout;
@@ -111,8 +112,9 @@ void Client::Create_and_join_room(const std::string& room_name) {
     Command cmd;
     cmd.type = CREATE_ROOM;
     strcpy(cmd.room_name, room_name.c_str());
-    user_data.identity = IDENT_PROVIDER;
-    cmd.user = user_data;
+    identity = IDENT_PROVIDER;
+    strcpy(cmd.user.name, username.c_str());
+    cmd.user.identity = identity;
 
     char buffer[BUFFER_SIZE];
     //Send request    
@@ -135,7 +137,7 @@ void Client::Create_and_join_room(const std::string& room_name) {
     printf("buffer: %s\n", buffer);
     deserialize_RoomData(buffer, new_room);
     cout << "[Client][Debug] Create_and_join_room(): Received response\n" << to_string(new_room);
-
+    
     if(!Join_room_by_port(new_room.running_port, IDENT_PROVIDER)) {
         std::cerr << "[Client][Error] Create_and_join_room(): failed to join new room\n";
     }
@@ -217,15 +219,18 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
     connection_port = port;
 
     char buffer[BUFFER_SIZE];
-    user_data.identity = user_type;
+    UserData ud;
+    identity = user_type;
+    ud.identity = identity;
+    strcpy(ud.name, username.c_str());
     //Send user data
-    serialize_UserData(user_data, buffer);
+    serialize_UserData(ud, buffer);
     if(write(connection_fd, buffer, sizeof(UserData)) < 0) {
         std::cerr << "[Client][Error] Join_room_by_port(): failed to send user data to server\n";
         perror("[Client][Error] Join_room_by_port()");
         return false;
     }
-
+    
     Room_loop();
 
     Connect_central_server(); //Reconnect to central server after leaving the room
@@ -245,9 +250,13 @@ bool Client::Join_room(int target_room) {
 }
 
 void Client::Room_loop() {
-    if(user_data.identity == IDENT_AUDIENCE) std::thread videoThread(&Client::Receive_video, this);
-    if(user_data.identity == IDENT_PROVIDER) std::thread audioThread(&Client::Send_video, this);
-    if(user_data.identity == IDENT_AUDIENCE) Display_frames();
+    printf("hi");
+    std::thread videoThread;
+    if(identity == IDENT_AUDIENCE) videoThread = std::thread(&Client::Receive_video, this);
+    if(identity == IDENT_PROVIDER) videoThread = std::thread(&Client::Send_video, this);
+    if(identity == IDENT_AUDIENCE) Display_frames();
+    videoThread.join();
+    printf("bye");
 }
 
 
@@ -298,7 +307,7 @@ void Client::Send_video() {
     vid_addr.sin_addr = server_ip_addr;
     vid_addr.sin_port = htons(connection_port + 1);    
 
-    cv::VideoCapture cap;
+    cv::VideoCapture cap(0);
     if (!cap.isOpened()) {
         std::cerr << "Cannot open the camera" << std::endl;
         return;
@@ -358,7 +367,7 @@ void Client::Receive_video() {
     bzero(&vid_addr, sizeof(vid_addr));
     vid_addr.sin_family = AF_INET;
     vid_addr.sin_addr = server_ip_addr;
-    vid_addr.sin_port = htons(connection_port + 1);    
+    vid_addr.sin_port = htons(connection_port + 3);    
 
     if (bind(sockfd, (struct sockaddr *)&vid_addr, sizeof(vid_addr)) < 0) {
         std::cerr << "Failed to bind socket." << std::endl;
@@ -432,7 +441,7 @@ int Client::Run() {
     std::string input;
     std::cout << "Enter your username: ";
     std::cin >> input;
-    strcpy(user_data.name, input.c_str());
+    username = input;
 
     Connect_central_server();
     Central_loop();

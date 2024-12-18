@@ -14,6 +14,8 @@ class Client {
     private:
     in_addr server_ip_addr;
     UserData user_data;
+    std::string username;
+    Identiy identity;
     int connection_fd;
     int connection_port;
     std::vector<RoomData> rooms;
