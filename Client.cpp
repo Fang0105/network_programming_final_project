@@ -251,11 +251,40 @@ void Client::Room_loop() {
     if(user_data.identity == IDENT_AUDIENCE) Display_frames();
 }
 
+
 void Client::Handle_message() {
-    /*fd_set set, rset;
+
+    fd_set set, rset;
     FD_ZERO(&set);
-    FD_SET(&connection_fd, );*/
+    FD_SET(connection_fd , &set);
+    FD_SET(fileno(stdin), &set);
+    int maxfdp1 = std::max(connection_fd, fileno(stdin)) + 1;
+
+    while(true){
+        rset = set;
+        select(maxfdp1, &rset, NULL, NULL, NULL);
+
+        if(FD_ISSET(connection_fd, &rset)){
+            char buffer[1024];
+            int status = recv(connection_fd, buffer, sizeof(buffer), 0);
+            if(status == 0){
+                printf("Server close connection\n");
+                break;
+            }
+            printf("%s\n", buffer);
+        }else if(FD_ISSET(fileno(stdin), &rset)){
+            char buffer[1024];
+            fgets(buffer, sizeof(buffer), stdin);
+            int status = send(connection_fd, buffer, strlen(buffer), 0);
+            if(status < 0){
+                printf("Error send message\n");
+            }
+        }
+    }
+
 }
+
+
 
 void Client::Send_audio() {
 
