@@ -6,8 +6,9 @@
 
 #define LISTENQ 1024
 #define FRAMES_PER_BUFFER 512
+#define SERV_PORT 10000
 
-enum Identiy {ERROR, AUDIENCE, PROVIDER};
+enum Identiy {IDENT_ERROR, IDENT_AUDIENCE, IDENT_PROVIDER};
 
 struct UserData {
     int id;                 // server give
@@ -20,6 +21,15 @@ struct RoomData {
     std::string room_name;
     UserData host_user;
     int running_port;
+};
+
+struct ClientData {
+    int id;
+    char name[1024];
+    bool is_online;
+    int connfd;
+    Identiy identity;
+    sockaddr_in address;
 };
 
 enum CommandType {CREATE_ROOM, LIST_ROOM, JOIN_ROOM};

@@ -13,22 +13,6 @@
 #include "structures.h"
 #include <cstring>
 
-struct Client{
-    int id;
-
-    char name[1024];
-
-    bool is_online;
-
-    int connfd;
-
-    Identiy identity;
-
-    sockaddr_in address;
-};
-
-
-
 class RoomServer {
     private:
         sockaddr_in addr;
@@ -60,7 +44,7 @@ class RoomServer {
 
         fd_set master_set, rset;
 
-        std::vector<Client> all_clients;
+        std::vector<ClientData> all_clients;
 
     public:
 
@@ -86,16 +70,16 @@ class RoomServer {
 
         void AcceptUser(UserData user, sockaddr_in user_addr, int connfd) {
             
-            if(user.identity == AUDIENCE){
+            if(user.identity == IDENT_AUDIENCE){
                 printf("Accept audience\n");
                 printf("id : %d, name : %s\n\n", user.id, user.name.c_str());
 
-                Client client;
+                ClientData client;
                 client.id = user.id;
                 strcpy(client.name, user.name.c_str());
                 client.is_online = true;
                 client.connfd = connfd;
-                client.identity = AUDIENCE;
+                client.identity = IDENT_AUDIENCE;
                 client.address = user_addr;
 
                 // audience_address.push_back(user_addr);
@@ -104,16 +88,16 @@ class RoomServer {
                 FD_SET(connfd, &master_set);
 
                 maxfdp1 = std::max(maxfdp1, connfd + 1);
-            }else if(user.identity == PROVIDER){
+            }else if(user.identity == IDENT_PROVIDER){
                 printf("Accept host\n");
                 // host_address = user_addr;
 
-                Client client;
+                ClientData client;
                 client.id = user.id;
                 strcpy(client.name, user.name.c_str());
                 client.is_online = true;
                 client.connfd = connfd;
-                client.identity = PROVIDER;
+                client.identity = IDENT_PROVIDER;
                 client.address = user_addr;
 
                 all_clients.push_back(client);
@@ -121,7 +105,7 @@ class RoomServer {
                 FD_SET(connfd, &master_set);
 
                 maxfdp1 = std::max(maxfdp1, connfd + 1);
-            }else if(user.identity == ERROR){
+            }else if(user.identity == IDENT_ERROR){
                 printf("Error user\n");
             }else{
                 printf("Undefined user\n");
@@ -129,7 +113,7 @@ class RoomServer {
 
 
             printf("all users:\n");
-            for(Client client : all_clients){
+            for(const ClientData& client : all_clients){
                 printf("id : %d, name : %s, connfd : %d, is_online : %d\n", client.id, client.name, client.connfd, client.is_online);
             }
             printf("maxfdp1 : %d\n", maxfdp1);
@@ -166,8 +150,8 @@ class RoomServer {
                 // for(sockaddr_in audience : audience_address){
                 //     sendto(send_audio_socket, buffer, sizeof(buffer), 0, (sockaddr*) &audience, sizeof(audience));
                 // }
-                for(Client client : all_clients){
-                    if(client.is_online && client.identity == AUDIENCE){
+                for(const ClientData& client : all_clients){
+                    if(client.is_online && client.identity == IDENT_AUDIENCE){
                         sendto(send_audio_socket, buffer, sizeof(buffer), 0, (sockaddr*) &client.address, sizeof(client.address));
                     }
                 }
@@ -205,8 +189,8 @@ class RoomServer {
                 //     sendto(send_video_socket, buffer, sizeof(buffer), 0, (sockaddr*) &audience, sizeof(audience));
                 // }
 
-                for(Client client : all_clients){
-                    if(client.is_online && client.identity == AUDIENCE){
+                for(const ClientData& client : all_clients){
+                    if(client.is_online && client.identity == IDENT_AUDIENCE){
                         sendto(send_video_socket, buffer, sizeof(buffer), 0, (sockaddr*) &client.address, sizeof(client.address));
                     }
                 }
@@ -256,7 +240,7 @@ class RoomServer {
                                 FD_CLR(all_clients[i].connfd, &master_set);
                                 close(all_clients[i].connfd);
 
-                                if(all_clients[i].identity == PROVIDER){
+                                if(all_clients[i].identity == IDENT_PROVIDER){
                                     printf("Host close connection\n");
                                     for(int j=0;j<all_clients.size();j++){
                                         if(all_clients[j].is_online){
