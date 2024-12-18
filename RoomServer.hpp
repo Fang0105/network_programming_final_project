@@ -12,11 +12,28 @@
 #include <thread>
 #include "structures.h"
 #include <cstring>
+#include <iostream>
+#include <atomic>
+#include <chrono>
 
 void Close(int fd) {
     if (close(fd) < 0) {
         fprintf(stderr, "fd: %d", fd);
         perror("close");
+    }
+}
+
+void setRecvTimeout(int socket_fd, int seconds, int microseconds) {
+
+    printf("Setting socket timeout\n");
+    struct timeval timeout;
+    timeout.tv_sec = seconds;
+    timeout.tv_usec = microseconds;
+
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0) {
+        perror("Error setting socket timeout");
+    } else {
+        printf("Timeout set to %d seconds and %d microseconds\n", seconds, microseconds);
     }
 }
 
@@ -57,7 +74,17 @@ class RoomServer {
 
         std::vector<ClientData> all_clients;
 
-        bool ready_to_end = false;
+        //bool ready_to_end = false;
+        //std::atomic<bool> ready_to_end(false);
+        std::atomic<bool> ready_to_end{false};  // 使用直接初始化
+
+
+        // threads
+        std::thread audio_thread;
+        std::thread video_thread;
+
+
+
     public:
 
         bool is_alive = true;
@@ -148,6 +175,14 @@ class RoomServer {
                 printf("Error create receive audio socket\n");
             }else{
                 printf("Create receive audio socket\n");
+                setRecvTimeout(receive_audio_socket, 1, 0);  // 設置 1 秒超時
+            }
+
+            send_audio_socket = socket(AF_INET, SOCK_DGRAM, 0);
+            if(send_audio_socket < 0){
+                printf("Error create send audio socket\n");
+            }else{
+                printf("Create send audio socket\n");
             }
 
             sockaddr_in receive_audio_addr = {};
@@ -162,11 +197,21 @@ class RoomServer {
             }
 
             float buffer[FRAMES_PER_BUFFER];
-            while(true){
+            while(!ready_to_end){
                 printf("waiting audio\n");
                 ssize_t receivedSize = recvfrom(receive_audio_socket, buffer, sizeof(buffer), 0, nullptr, nullptr);
-                if(receivedSize < 0){
-                    printf("Error receive audio\n");
+                // if(receivedSize < 0){
+                //     printf("Error receive audio\n");
+                // }
+
+                if (receivedSize < 0) {
+                    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                        printf("Audio receive timeout, retrying...\n");
+                        continue;  // 超時則重試
+                    } else {
+                        perror("Error receiving audio");
+                        break;
+                    }
                 }
 
                 // for(sockaddr_in audience : audience_address){
@@ -178,6 +223,12 @@ class RoomServer {
                     }
                 }
             }
+
+            printf("A\n");
+            Close(receive_audio_socket);
+            printf("B\n");
+            Close(send_audio_socket);
+            printf("End receive and send audio\n");
         }
 
         void receiveAndSendVideo(){
@@ -186,6 +237,14 @@ class RoomServer {
                 printf("Error create receive video socket\n");
             }else{
                 printf("Create receive video socket\n");
+                setRecvTimeout(receive_video_socket, 1, 0);  // 設置 1 秒超時
+            }
+
+            send_video_socket = socket(AF_INET, SOCK_DGRAM, 0);
+            if(send_video_socket < 0){
+                printf("Error create send video socket\n");
+            }else{
+                printf("Create send video socket\n");
             }
 
             sockaddr_in receive_video_addr = {};
@@ -200,11 +259,21 @@ class RoomServer {
             }
 
             float buffer[FRAMES_PER_BUFFER];
-            while(true){
+            while(!ready_to_end){
                 printf("waiting video\n");
                 ssize_t receivedSize = recvfrom(receive_video_socket, buffer, sizeof(buffer), 0, nullptr, nullptr);
-                if(receivedSize < 0){
-                    printf("Error receive video\n");
+                // if(receivedSize < 0){
+                //     printf("Error receive video\n");
+                // }
+
+                if (receivedSize < 0) {
+                    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                        printf("Video receive timeout, retrying...\n");
+                        continue;  // 超時則重試
+                    } else {
+                        perror("Error receiving video");
+                        break;
+                    }
                 }
 
                 // for(sockaddr_in audience : audience_address){
@@ -217,6 +286,12 @@ class RoomServer {
                     }
                 }
             }
+
+            printf("C\n");
+            Close(receive_video_socket);
+            printf("D\n");
+            Close(send_video_socket);
+            printf("End receive and send video\n");
         }
 
 
@@ -279,7 +354,10 @@ class RoomServer {
 
                                     //TODO: do end room section
                                     ready_to_end = true;
+                                    // ready_to_end.store(true);
+                                    printf("hahahahahaahahah666666666\n");
                                     printf("ready to end\n");
+
                                     return;
                                 }
 
@@ -306,14 +384,20 @@ class RoomServer {
 
 
         void run(){
-            // std::thread receive_user_and_message_thread(&RoomServer::receiveUserAndReceiveAndSendMessage, this);
-            // std::thread audio_thread(&RoomServer::receiveAndSendAudio, this);
-            // std::thread video_thread(&RoomServer::receiveAndSendVideo, this);
-            // receive_user_and_message_thread = std::thread(&RoomServer::receiveUserAndReceiveAndSendMessage, this);
+            //ready_to_end.store(false);
+            audio_thread = std::thread(&RoomServer::receiveAndSendAudio, this);
+            video_thread = std::thread(&RoomServer::receiveAndSendVideo, this);
             receiveUserAndReceiveAndSendMessage();
-            printf("22222222222\n");
-            end();
+            //printf("22222222222\n");
+            
 
+            audio_thread.join();
+            video_thread.join();
+
+            printf("Room server end byebye byebye byebye byebye\n");
+            end();
+            printf("all Room server end\n");
+            
             
             // audio_thread.join();
             // video_thread.join();
@@ -324,14 +408,9 @@ class RoomServer {
 
         void end(){
 
-            printf("hahahahaahahahah\n");
-
+            //printf("hahahahaahahahah\n");
+            printf("Zzzzzzz\n");
             Close(accept_user_listen_socket);
-            // // Close(receive_video_socket);
-            // // Close(receive_audio_socket);
-            // // Close(send_video_socket);
-            // // Close(send_audio_socket);
-
             
             for(ClientData client : all_clients){
                 if(client.is_online){
@@ -339,7 +418,7 @@ class RoomServer {
                 }
                 
             }
-            printf("Room server end byebye byebye byebye byebye\n");
+            printf("66666666666 end byebye byebye byebye byebye\n");
         }
 };
 
