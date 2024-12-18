@@ -18,5 +18,13 @@ struct RoomData {
 };
 
 
+void serialize(const UserData &obj, char *buffer) {
+    memcpy(buffer, &obj, sizeof(UserData));
+}
+
+void deserialize(const char *buffer, UserData &obj) {
+    memcpy(&obj, buffer, sizeof(UserData));
+}
+
 
 #endif
