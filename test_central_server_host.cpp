@@ -22,7 +22,7 @@ int main(){
     UserData user;
     user.id = 1;
     user.name = "nody";
-    user.identity = PROVIDER;
+    user.identity = IDENT_PROVIDER;
 
     Command command;
     command.type = CREATE_ROOM;
