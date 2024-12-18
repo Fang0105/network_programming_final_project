@@ -23,6 +23,27 @@ struct RoomData {
 };
 
 
+class client {
+private:
+    UserData data;
+public:
+
+    client() = default;
+    ~client() = default;
+
+    void    set_name(const std::string& name) { data.name = name; }
+    void    set_id(int id) {data.id = id; }
+    void    set_identity(Identiy identity ) { data.identity = identity; }
+
+    std::string  get_name() {return data.name ;}
+    int     get_id() {return data.id ;}
+    int     get_identity () {return data.identity ;}      
+    
+
+    UserData get_data() const { return data; }
+};
+
+
 void serialize_UserData(const UserData &obj, char *buffer) {
     memcpy(buffer, &obj, sizeof(UserData));
 }

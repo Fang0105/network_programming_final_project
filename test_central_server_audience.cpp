@@ -55,6 +55,10 @@ int main(){
     printf("Choose a room id : ");
     scanf("%d", &choose_room_id);
 
+
+    char c;
+    while((c=getchar()) != '\n' && c != EOF);
+
     close(sockfd);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
