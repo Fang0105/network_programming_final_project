@@ -5,7 +5,6 @@
 #include <netinet/in.h>
 #include <iostream>
 #include <iomanip>
-#include <opencv2/opencv.hpp>
 
 using std::cin;
 using std::cout;
@@ -246,8 +245,8 @@ bool Client::Join_room(int target_room) {
 }
 
 void Client::Room_loop() {
-    if(user_data.identity == IDENT_AUDIENCE) std::thread videoThread(Receive_video);
-    if(user_data.identity == IDENT_PROVIDER) std::thread audioThread(Send_video);
+    if(user_data.identity == IDENT_AUDIENCE) std::thread videoThread(&Client::Receive_video, this);
+    if(user_data.identity == IDENT_PROVIDER) std::thread audioThread(&Client::Send_video, this);
     if(user_data.identity == IDENT_AUDIENCE) Display_frames();
 }
 
@@ -412,7 +411,7 @@ void Client::Receive_video() {
 void Client::Display_frames() {
     while (true) {
         std::unique_lock<std::mutex> lock(queueMutex);
-        frameCondVar.wait(lock, Check_frame_queue_empty());
+        frameCondVar.wait(lock, [this] { return !frameQueue.empty(); });
 
         while (!frameQueue.empty()) {
             cv::Mat frame = frameQueue.front();
@@ -425,8 +424,6 @@ void Client::Display_frames() {
         }
     }
 }
-
-bool Client::Check_frame_queue_empty() { return !frameQueue.empty(); }
 
 int Client::Run() {
     set_scr();

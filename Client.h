@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <thread>
 #include <unordered_map>
+#include <opencv2/opencv.hpp>
 
 class Client {
     private:
@@ -47,8 +48,7 @@ class Client {
     void Receive_audio();
     void Receive_video();
     void Display_frames();
-    bool Check_frame_queue_empty();
-
+    
     public:
     Client(const std::string server_ip_addr);
     ~Client();
