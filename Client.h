@@ -7,9 +7,10 @@
 class Client {
     private:
     in_addr server_ip_addr;
-    UserData data;
+    std::string username;
     int connection_fd;
     std::vector<RoomData> rooms;
+    const int BUFFER_SIZE = 4096;
 
     //General
     void Close_connetion();
@@ -19,13 +20,13 @@ class Client {
     void Central_loop();    
 
     void Print_commands();
+    
+    void Create_and_join_room(const std::string& room_name);
 
     void Request_room_list();
     void Print_room_list();
 
-    int Build_room();
-
-    //Room Server Functions
+    bool Join_room_by_port(int port);
     bool Join_room(int target_room);
     void Room_loop();
 

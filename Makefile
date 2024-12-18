@@ -9,7 +9,7 @@ CppFLAGS = -std=c++11
 central_server:	central_server.cpp
 		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS} 
 
-client:	client.cpp
+client:	Client.cpp
 		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS}
 
 test_roomserver_client_audience:	test_roomserver_client_audience.cpp

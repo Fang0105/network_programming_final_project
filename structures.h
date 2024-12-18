@@ -16,12 +16,24 @@ struct UserData {
     Identiy identity = IDENT_NONE;   // 0: not set, 1: audience, 2: provider
 };
 
+std::string to_string(const UserData& d) {
+    return  "name: " + d.name + "\n" + 
+            "identity: " + std::to_string(int(d.identity)) + "\n";
+}
+
 struct RoomData {
     int room_id;
     std::string room_name;
     UserData host_user;
     int running_port;
 };
+
+std::string to_string(const RoomData& d) {
+    return  "room_id: " + std::to_string(d.room_id) + "\n" + 
+            "room_name: " + d.room_name + "\n" +
+            "running_port:" + std::to_string(d.running_port) + "\n" +
+            "host_user: \n" + to_string(d.host_user) + "\n";
+}
 
 struct ClientData {
     int id;
