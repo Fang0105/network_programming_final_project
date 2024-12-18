@@ -1,8 +1,9 @@
 include ../Make.defines
 
-PROGS =	central_server test
+PROGS =	central_server test client
 ODIR = output
 INCLUDE = RoomServer.hpp
+
 
 all:	${PROGS}
 
@@ -11,6 +12,9 @@ central_server:	central_server.c
 
 test:	test.c
 		${CC} ${CFLAGS} -o ${ODIR}/$@ $< ${LIBS}
+
+client:	client.cpp
+		g++ ${CFLAGS} -o ${ODIR}/$@ $< ${LIBS}
 
 clean:
 		rm -f ${ODIR}/${PROGS} ${CLEANFILES}
