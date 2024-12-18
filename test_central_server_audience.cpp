@@ -22,7 +22,7 @@ int main(){
     UserData user;
     user.id = 16666;
     user.name = "nody_client";
-    user.identity = AUDIENCE;
+    user.identity = IDENT_AUDIENCE;
 
     Command command;
     command.type = LIST_ROOM;
@@ -35,14 +35,14 @@ int main(){
     send(sockfd, buffer, sizeof(buffer), 0);
     
     
-    char recv_buffer_all_rooms_size[sizeof(Number)];
+    char recv_buffer_all_rooms_size[sizeof(int)];
     recv(sockfd, recv_buffer_all_rooms_size, sizeof(recv_buffer_all_rooms_size), 0);
-    Number all_rooms_size;
+    int all_rooms_size;
     deserialize_Number(recv_buffer_all_rooms_size, all_rooms_size);
 
-    printf("all rooms size : %d\n", all_rooms_size.num);
+    printf("all rooms size : %d\n", all_rooms_size);
     std::vector<RoomData> all_rooms;
-    for(int i=0;i<all_rooms_size.num;i++){
+    for(int i=0;i<all_rooms_size;i++){
         char recv_buffer_RoomData[sizeof(RoomData)];
         recv(sockfd, recv_buffer_RoomData, sizeof(recv_buffer_RoomData), 0);
         RoomData room;

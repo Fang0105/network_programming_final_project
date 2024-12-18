@@ -333,7 +333,7 @@ class RoomServer {
             // // Close(send_audio_socket);
 
             
-            for(Client client : all_clients){
+            for(ClientData client : all_clients){
                 if(client.is_online){
                     Close(client.connfd);
                 }

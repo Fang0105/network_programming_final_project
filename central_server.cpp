@@ -8,7 +8,6 @@
 #include "RoomServer.hpp"
 #include "structures.h"
 
-const int SERV_PORT = 10000;
 
 void sig_chld(int signo) {
     pid_t pid;
@@ -159,9 +158,9 @@ class CentralServer {
 
                             all_rooms = rooms_still_alive;
 
-                            Number all_rooms_size;
-                            all_rooms_size.num = all_rooms.size();
-                            char send_buffer_all_rooms_size[sizeof(Number)];
+                            int all_rooms_size;
+                            all_rooms_size = all_rooms.size();
+                            char send_buffer_all_rooms_size[sizeof(int)];
                             serialize_Number(all_rooms_size, send_buffer_all_rooms_size);
                             send(conn_fd, send_buffer_all_rooms_size, sizeof(send_buffer_all_rooms_size), 0);
 

@@ -19,9 +19,7 @@ test_roomserver_client_host:	test_roomserver_client_host.cpp
 		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS}
 
 test_roomserver_room:	test_roomserver_room.cpp
-		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS}
-central_server:	central_server.cpp
-		${CC} ${CFLAGS} -o ${ODIR}/$@ $< ${INCLUDE} ${LIBS} 
+		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS} 
 
 test_central_server_host:	test_central_server_host.cpp
 		g++ ${CppFLAGS} -o ${ODIR}/$@ $< ${LIBS}
