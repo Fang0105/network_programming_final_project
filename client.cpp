@@ -51,7 +51,7 @@ public:
 };
 
 
-void tesk(FILE *fp, int sockfd);
+void task(FILE *fp, int sockfd);
 
 int main(int argc, char **argv){
 

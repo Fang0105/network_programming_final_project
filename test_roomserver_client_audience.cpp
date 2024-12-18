@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <iostream>
+#include <cstring>
+
 
 #define SERV_PORT 1000
 

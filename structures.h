@@ -2,6 +2,7 @@
 #define __FINAL_PROJECT_STRUCTURES__
 
 #include <string>
+#include <cstring>
 
 enum Identiy {ERROR, AUDIENCE, PROVIDER};
 

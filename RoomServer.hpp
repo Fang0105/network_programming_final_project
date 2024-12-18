@@ -11,6 +11,7 @@
 #include <vector>
 #include <thread>
 #include "structures.h"
+#include <cstring>
 
 #define LISTENQ 1024
 #define FRAMES_PER_BUFFER 512
