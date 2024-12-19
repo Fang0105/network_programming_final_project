@@ -226,7 +226,7 @@ class RoomServer {
                         sockaddr_in tem = client.address;
                         int x = ntohs(client.address.sin_port) + 2;
                         //printf("send to : %d\n", x);
-                        tem.sin_port = htons(ntohs(client.address.sin_port) + 1);
+                        tem.sin_port = htons(ntohs(client.address.sin_port) + 2);
                         sendto(send_audio_socket, buffer, sizeof(buffer), 0, (sockaddr*) &tem, sizeof(tem));
                     }
                 }
