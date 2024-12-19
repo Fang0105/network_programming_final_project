@@ -11,6 +11,8 @@
 #include <thread>
 #include <atomic>
 #include <opencv2/opencv.hpp>
+#include <portaudio.h>
+#include <assert.h>
 
 std::queue<cv::Mat> frameQueue;
 std::mutex queueMutex;
@@ -50,8 +52,7 @@ void handle_message(int sockfd){
 
 void displayFrames() {
 
-    printf("start display frames\n");
-
+    printf("start display\n");
 
     while (!stopFlag) {
         std::unique_lock<std::mutex> lock(queueMutex);
@@ -73,7 +74,7 @@ void displayFrames() {
     }
 }
 
-void receiveVideo(RoomData room) {
+void receiveVideo(RoomData room, int port) {
     int videoSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (videoSocket < 0) {
         std::cerr << "Failed to create socket." << std::endl;
@@ -82,7 +83,7 @@ void receiveVideo(RoomData room) {
 
     struct sockaddr_in videoAddr = {};
     videoAddr.sin_family = AF_INET;
-    videoAddr.sin_port = htons(room.running_port + 3);
+    videoAddr.sin_port = htons(port);
     videoAddr.sin_addr.s_addr = INADDR_ANY;
 
     if (bind(videoSocket, (struct sockaddr *)&videoAddr, sizeof(videoAddr)) < 0) {
@@ -96,6 +97,7 @@ void receiveVideo(RoomData room) {
 
     while (!stopFlag) {
         std::vector<uchar> packet(BUFFER_SIZE);
+        printf("try to receive video\n");
         ssize_t receivedSize = recvfrom(videoSocket, packet.data(), BUFFER_SIZE, 0, nullptr, nullptr);
         if (receivedSize < 0) {
             std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
@@ -133,9 +135,63 @@ void receiveVideo(RoomData room) {
     close(videoSocket);
 }
 
+#define SAMPLE_RATE 44100
+#define FRAMES_PER_BUFFER 512
 
+void receiveAudio(RoomData room, int port) {
+    printf("lalalalalaall\n");
+    int audioSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (audioSocket < 0) {
+        std::cerr << "Failed to create audio socket." << std::endl;
+        return;
+    }
+    printf("A\n");
+    struct sockaddr_in audioAddr = {};
+    audioAddr.sin_family = AF_INET;
+    audioAddr.sin_port = htons(port);
+    audioAddr.sin_addr.s_addr = INADDR_ANY;
+    printf("B\n");
+    if (bind(audioSocket, (struct sockaddr *)&audioAddr, sizeof(audioAddr)) < 0) {
+        std::cerr << "Failed to bind audio socket." << std::endl;
+        close(audioSocket);
+        return;
+    }
+    printf("C\n");
+    // Initialize PortAudio
+    Pa_Initialize();
+    
+    
+    printf("D\n");
+    PaStream *stream;
+    Pa_OpenDefaultStream(&stream,
+                         0, // Input channels
+                         1, // Output channels
+                         paFloat32, // Sample format
+                         SAMPLE_RATE,
+                         FRAMES_PER_BUFFER,
+                         nullptr, // No callback
+                         nullptr); // No user data
 
+    
+    Pa_StartStream(stream);
+    
 
+    float buffer[FRAMES_PER_BUFFER];
+    while (!stopFlag) {
+        printf("try to lololololol\n");
+        ssize_t receivedSize = recvfrom(audioSocket, buffer, sizeof(buffer), 0, nullptr, nullptr);
+        if (receivedSize < 0) {
+            std::cerr << "Failed to receive audio data: " << strerror(errno) << std::endl;
+            break;
+        }
+        Pa_WriteStream(stream, buffer, FRAMES_PER_BUFFER);
+    }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
+    Pa_Terminate();
+    close(audioSocket);
+}
 
 
 
@@ -143,6 +199,7 @@ void receiveVideo(RoomData room) {
 
 
 int main(){
+    
     
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -218,6 +275,10 @@ int main(){
         }
     }
 
+    sockaddr_in addr = {};
+    int len = sizeof(addr);
+    getsockname(sockfd, (sockaddr*)&addr, (socklen_t*)&len);
+
     char user_buffer[sizeof(UserData)];
     serialize_UserData(user, user_buffer);
 
@@ -229,12 +290,18 @@ int main(){
     FD_SET(fileno(stdin), &master_set);
     maxfdp1 = std::max(sockfd, fileno(stdin)) + 1;
 
+    printf("inital : %d\n", ntohs(addr.sin_port));
+
+    
     std::thread messageThread(handle_message, sockfd);
-    std::thread videoThread(receiveVideo, all_rooms[choose_room_id - 1]);
+    std::thread videoThread(receiveVideo, all_rooms[choose_room_id - 1], ntohs(addr.sin_port) + 1);
+    std::thread audioThread(receiveAudio, all_rooms[choose_room_id - 1], ntohs(addr.sin_port) + 2);
     displayFrames();
 
+    stopFlag = true;
     messageThread.join();
     videoThread.join();
+    audioThread.join();
 
 
     

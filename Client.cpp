@@ -200,10 +200,11 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
     roomaddr.sin_port = htons(port);    
 
     int tryCount = 5; //Retry every second, for maximum of tryCount times.
-    while(tryCount--) {        
+    while(tryCount--) {      
+        printf("type: %d\n", user_type);  
         if(connect(new_sock_fd, (sockaddr*)&roomaddr, sizeof(roomaddr)) >= 0)
             break; //Connection succeeded
-
+        
         close(new_sock_fd);
         new_sock_fd = socket(AF_INET, SOCK_STREAM, 0);
         sleep(1);
@@ -213,7 +214,7 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
         cout << "Cannot connect to the room at port. Please try to list rooms again.\n";
         return false;
     }
-
+    
     Close_connetion(); //Close current connection with central server
     connection_fd = new_sock_fd; //Switch current connection to the new room;
     connection_port = port;
@@ -250,13 +251,11 @@ bool Client::Join_room(int target_room) {
 }
 
 void Client::Room_loop() {
-    printf("hi");
     std::thread videoThread;
     if(identity == IDENT_AUDIENCE) videoThread = std::thread(&Client::Receive_video, this);
     if(identity == IDENT_PROVIDER) videoThread = std::thread(&Client::Send_video, this);
     if(identity == IDENT_AUDIENCE) Display_frames();
     videoThread.join();
-    printf("bye");
 }
 
 
@@ -364,10 +363,9 @@ void Client::Receive_video() {
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
 
     sockaddr_in vid_addr;
+    int len = sizeof(vid_addr);
     bzero(&vid_addr, sizeof(vid_addr));
-    getsockname(connection_fd, (sockaddr*)&vid_addr, NULL);
-    vid_addr.sin_family = AF_INET;
-    vid_addr.sin_addr = server_ip_addr;
+    getsockname(connection_fd, (sockaddr*)&vid_addr, (socklen_t*)&len);
     vid_addr.sin_port = htons(ntohs(vid_addr.sin_port) + 1);    
 
     if (bind(sockfd, (struct sockaddr *)&vid_addr, sizeof(vid_addr)) < 0) {
@@ -386,6 +384,7 @@ void Client::Receive_video() {
             std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
             continue;
         }
+        std::cout << "Recv: " << receivedSize << "\n";
 
         uint32_t frameID = ntohl(*reinterpret_cast<uint32_t*>(&packet[0]));
         uint16_t chunkNumber = ntohs(*reinterpret_cast<uint16_t*>(&packet[4]));
@@ -422,13 +421,14 @@ void Client::Display_frames() {
     while (true) {
         std::unique_lock<std::mutex> lock(queueMutex);
         frameCondVar.wait(lock, [this] { return !frameQueue.empty(); });
-
         while (!frameQueue.empty()) {
             cv::Mat frame = frameQueue.front();
             frameQueue.pop();
             lock.unlock();
-
             cv::imshow("Received Frame", frame);
+            if (cv::waitKey(1) == 27) {  // Stop on ESC key
+                return;
+            }
 
             lock.lock();
         }

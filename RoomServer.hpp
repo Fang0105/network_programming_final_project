@@ -214,6 +214,8 @@ class RoomServer {
                         perror("Error receiving audio");
                         break;
                     }
+                }else{
+                    printf("send audio\n");
                 }
 
                 // for(sockaddr_in audience : audience_address){
@@ -221,7 +223,11 @@ class RoomServer {
                 // }
                 for(const ClientData& client : all_clients){
                     if(client.is_online && client.identity == IDENT_AUDIENCE){
-                        sendto(send_audio_socket, buffer, sizeof(buffer), 0, (sockaddr*) &client.address, sizeof(client.address));
+                        sockaddr_in tem = client.address;
+                        int x = ntohs(client.address.sin_port) + 2;
+                        //printf("send to : %d\n", x);
+                        tem.sin_port = htons(ntohs(client.address.sin_port) + 1);
+                        sendto(send_audio_socket, buffer, sizeof(buffer), 0, (sockaddr*) &tem, sizeof(tem));
                     }
                 }
             }
@@ -262,7 +268,7 @@ class RoomServer {
 
             float buffer[BUFFER_SIZE];
             while(!ready_to_end){
-                printf("waiting video\n");
+                //printf("waiting video\n");
                 ssize_t receivedSize = recvfrom(receive_video_socket, buffer, sizeof(buffer), 0, nullptr, nullptr);
                 // if(receivedSize < 0){
                 //     printf("Error receive video\n");
@@ -286,7 +292,7 @@ class RoomServer {
                     if(client.is_online && client.identity == IDENT_AUDIENCE){
                         sockaddr_in tem = client.address;
                         int x = ntohs(client.address.sin_port) + 1;
-                        printf("send to : %d\n", x);
+                        //printf("send to : %d\n", x);
                         tem.sin_port = htons(ntohs(client.address.sin_port) + 1);
                         sendto(send_video_socket, buffer, sizeof(buffer), 0, (sockaddr*) &tem, sizeof(tem));
                     }

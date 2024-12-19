@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <portaudio.h>
 
 #define SERV_PORT 10000
 
@@ -83,7 +84,46 @@ void sendVideo(RoomData room) {
 
 
 
+void sendAudio(RoomData room) {
+    int audioSocket = socket(AF_INET, SOCK_DGRAM, 0);
 
+    struct sockaddr_in audioAddr = {};
+    audioAddr.sin_family = AF_INET;
+    audioAddr.sin_port = htons(room.running_port + 2);
+    inet_pton(AF_INET, "127.0.0.1", &audioAddr.sin_addr);
+
+    // Initialize PortAudio
+    Pa_Initialize();
+
+    PaStream *stream;
+    Pa_OpenDefaultStream(&stream,
+                         1, // Input channels
+                         0, // Output channels
+                         paFloat32, // Sample format
+                         SAMPLE_RATE,
+                         FRAMES_PER_BUFFER,
+                         nullptr, // No callback
+                         nullptr); // No user data
+
+    Pa_StartStream(stream);
+
+    float buffer[FRAMES_PER_BUFFER];
+
+    while (true) {
+        Pa_ReadStream(stream, buffer, FRAMES_PER_BUFFER);
+        if (sendto(audioSocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&audioAddr, sizeof(audioAddr)) < 0) {
+            std::cerr << "Failed to send audio data: " << strerror(errno) << std::endl;
+            break;
+        }else{
+            printf("send audio\n");
+        }
+    }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
+    Pa_Terminate();
+    close(audioSocket);
+}
 
 
 
@@ -156,6 +196,7 @@ int main(){
     send(sockfd, user_buffer, sizeof(user_buffer), 0);
 
     std::thread videoThread(sendVideo, room);
+    std::thread audioThread(sendAudio, room);
 
     fd_set master_set, rset;
     FD_ZERO(&master_set);
@@ -185,7 +226,8 @@ int main(){
         }
     }
 	
-    
+    videoThread.join();
+    audioThread.join();
     
 
 
