@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <thread>
 #include <unordered_map>
+#include <atomic>
 #include <opencv2/opencv.hpp>
 
 class Client {
@@ -19,6 +20,7 @@ class Client {
     int connection_fd;
     int connection_port;
     std::vector<RoomData> rooms;
+    std::atomic<bool> keepLoop;
 
     //For video & audio
     std::queue<cv::Mat> frameQueue;

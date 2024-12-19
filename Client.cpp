@@ -65,8 +65,9 @@ void Client::Central_loop() {
     clr_scr();
 
     while(loop) {
-        // Show menu        
+        // Show menu                
         Print_commands();
+        Connect_central_server();
         cin >> command;
         std::string room_name;
 
@@ -74,19 +75,26 @@ void Client::Central_loop() {
             case 'a': case 'A':
             cout << "Enter the room's name: ";
             cin >> room_name;
+            clr_scr();
             Create_and_join_room(room_name);
+            clr_scr();
             break;
             
             case 'b': case 'B':
+            clr_scr();
             Request_room_list();
             Print_room_list();
             break;
 
-            case 'c': case 'C':            
+            case 'c': case 'C':
+            Request_room_list();
+            Print_room_list();
             int room;
             cout << "Please enter the room number you want to join:";
             cin >> room;
+            clr_scr();
             Join_room(room);
+            clr_scr();
             break;
 
             case 'q': case 'Q':
@@ -96,6 +104,7 @@ void Client::Central_loop() {
             default:
             cout << "Unknown command: " << command << "\n";
         }
+        Close_connetion();
     }
 }
 
@@ -201,7 +210,6 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
 
     int tryCount = 5; //Retry every second, for maximum of tryCount times.
     while(tryCount--) {      
-        printf("type: %d\n", user_type);  
         if(connect(new_sock_fd, (sockaddr*)&roomaddr, sizeof(roomaddr)) >= 0)
             break; //Connection succeeded
         
@@ -231,7 +239,8 @@ bool Client::Join_room_by_port(int port, Identiy user_type) {
         perror("[Client][Error] Join_room_by_port()");
         return false;
     }
-    
+
+    clr_scr();
     Room_loop();
 
     Connect_central_server(); //Reconnect to central server after leaving the room
@@ -251,23 +260,32 @@ bool Client::Join_room(int target_room) {
 }
 
 void Client::Room_loop() {
-    std::thread videoThread;
-    if(identity == IDENT_AUDIENCE) videoThread = std::thread(&Client::Receive_video, this);
-    if(identity == IDENT_PROVIDER) videoThread = std::thread(&Client::Send_video, this);
+    keepLoop.store(true);
+    //text
+    std::thread message_thread = std::thread(&Client::Handle_message, this);
+
+    //video
+    std::thread video_thread;
+    if(identity == IDENT_AUDIENCE) video_thread = std::thread(&Client::Receive_video, this);
+    if(identity == IDENT_PROVIDER) video_thread = std::thread(&Client::Send_video, this);
     if(identity == IDENT_AUDIENCE) Display_frames();
-    videoThread.join();
+
+    //audio
+
+    //exit
+    message_thread.join(); 
+    video_thread.join();
 }
 
 
 void Client::Handle_message() {
-
     fd_set set, rset;
     FD_ZERO(&set);
     FD_SET(connection_fd , &set);
     FD_SET(fileno(stdin), &set);
     int maxfdp1 = std::max(connection_fd, fileno(stdin)) + 1;
 
-    while(true){
+    while(keepLoop.load()){
         rset = set;
         select(maxfdp1, &rset, NULL, NULL, NULL);
 
@@ -279,16 +297,16 @@ void Client::Handle_message() {
                 break;
             }
             printf("%s\n", buffer);
-        }else if(FD_ISSET(fileno(stdin), &rset)){
+
+        } else if(FD_ISSET(fileno(stdin), &rset)) {
             char buffer[1024];
-            fgets(buffer, sizeof(buffer), stdin);
-            int status = send(connection_fd, buffer, strlen(buffer), 0);
-            if(status < 0){
+            if(fgets(buffer, sizeof(buffer), stdin) == NULL) {
+                keepLoop.store(false);
+            } else if(send(connection_fd, buffer, strlen(buffer), 0) < 0) {
                 printf("Error send message\n");
             }
         }
     }
-
 }
 
 
@@ -313,7 +331,7 @@ void Client::Send_video() {
     }
 
     uint32_t frameID = 0;
-    while (true) {
+    while (keepLoop.load()) {
         cv::Mat frame;
         cap >> frame;
         if (frame.empty()) {
@@ -377,14 +395,13 @@ void Client::Receive_video() {
     std::unordered_map<uint32_t, std::vector<std::vector<uchar>>> frameChunks;
     std::unordered_map<uint32_t, size_t> frameChunkCounts;
 
-    while (true) {
+    while (keepLoop.load()) {
         std::vector<uchar> packet(BUFFER_SIZE);
         ssize_t receivedSize = recvfrom(sockfd, packet.data(), BUFFER_SIZE, 0, nullptr, nullptr);
         if (receivedSize < 0) {
             std::cerr << "Failed to receive data: " << strerror(errno) << std::endl;
             continue;
         }
-        std::cout << "Recv: " << receivedSize << "\n";
 
         uint32_t frameID = ntohl(*reinterpret_cast<uint32_t*>(&packet[0]));
         uint16_t chunkNumber = ntohs(*reinterpret_cast<uint16_t*>(&packet[4]));
@@ -418,21 +435,21 @@ void Client::Receive_video() {
 }
 
 void Client::Display_frames() {
-    while (true) {
-        std::unique_lock<std::mutex> lock(queueMutex);
-        frameCondVar.wait(lock, [this] { return !frameQueue.empty(); });
-        while (!frameQueue.empty()) {
+    std::unique_lock<std::mutex> lock(queueMutex);
+    while (keepLoop.load()) {
+        frameCondVar.wait(lock, [this] { return (!frameQueue.empty() || !keepLoop.load()); });
+        while (!frameQueue.empty() && keepLoop.load()) {
             cv::Mat frame = frameQueue.front();
             frameQueue.pop();
             lock.unlock();
             cv::imshow("Received Frame", frame);
-            if (cv::waitKey(1) == 27) {  // Stop on ESC key
-                return;
-            }
-
+            cv::waitKey(1);            
             lock.lock();
         }
     }
+    cv::destroyAllWindows();
+    lock.unlock();
+    printf("display end\n");
 }
 
 int Client::Run() {
@@ -444,9 +461,9 @@ int Client::Run() {
     std::cin >> input;
     username = input;
 
-    Connect_central_server();
+    //Connect_central_server();
     Central_loop();
-    Close_connetion();
+    //Close_connetion();
 
     return 0;    
 }
