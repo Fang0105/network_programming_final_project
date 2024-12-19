@@ -6,6 +6,7 @@
 #include <iostream>
 #include <iomanip>
 #include <assert.h>
+#include <portaudio.h>
 
 using std::cin;
 using std::cout;
@@ -261,20 +262,23 @@ bool Client::Join_room(int target_room) {
 
 void Client::Room_loop() {
     keepLoop.store(true);
-    //text
     std::thread message_thread = std::thread(&Client::Handle_message, this);
+    std::thread videoThread;
+    std::thread audioThread;
 
-    //video
-    std::thread video_thread;
-    if(identity == IDENT_AUDIENCE) video_thread = std::thread(&Client::Receive_video, this);
-    if(identity == IDENT_PROVIDER) video_thread = std::thread(&Client::Send_video, this);
-    if(identity == IDENT_AUDIENCE) Display_frames();
-
-    //audio
+    if(identity == IDENT_AUDIENCE) {
+        videoThread = std::thread(&Client::Receive_video, this);
+        audioThread = std::thread(&Client::Receive_audio, this);
+        Display_frames();
+    }else if(identity == IDENT_PROVIDER) {
+        videoThread = std::thread(&Client::Send_video, this);
+        audioThread = std::thread(&Client::Send_audio, this);
+    }
 
     //exit
     message_thread.join(); 
-    video_thread.join();
+    videoThread.join();
+    audioThread.join();
 }
 
 
@@ -312,7 +316,45 @@ void Client::Handle_message() {
 
 
 void Client::Send_audio() {
+    printf("start send audio\n");
+    int audioSocket = socket(AF_INET, SOCK_DGRAM, 0);
 
+    struct sockaddr_in audioAddr = {};
+    audioAddr.sin_family = AF_INET;
+    audioAddr.sin_port = htons(connection_port + 2);
+    inet_pton(AF_INET, "127.0.0.1", &audioAddr.sin_addr);
+
+    // Initialize PortAudio
+    Pa_Initialize();
+
+    PaStream *stream;
+    Pa_OpenDefaultStream(&stream,
+                         1, // Input channels
+                         0, // Output channels
+                         paFloat32, // Sample format
+                         SAMPLE_RATE,
+                         FRAMES_PER_BUFFER,
+                         nullptr, // No callback
+                         nullptr); // No user data
+
+    Pa_StartStream(stream);
+
+    float buffer[FRAMES_PER_BUFFER];
+
+    while (true) {
+        Pa_ReadStream(stream, buffer, FRAMES_PER_BUFFER);
+        if (sendto(audioSocket, buffer, sizeof(buffer), 0, (struct sockaddr *)&audioAddr, sizeof(audioAddr)) < 0) {
+            std::cerr << "Failed to send audio data: " << strerror(errno) << std::endl;
+            break;
+        }else{
+            // printf("send audio\n");
+        }
+    }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
+    Pa_Terminate();
+    close(audioSocket);
 }
 
 void Client::Send_video() {
@@ -374,6 +416,56 @@ void Client::Send_video() {
 }
 
 void Client::Receive_audio() {
+    int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    sockaddr_in aud_addr;
+    int len = sizeof(aud_addr);
+    bzero(&aud_addr, sizeof(aud_addr));
+    getsockname(connection_fd, (sockaddr*)&aud_addr, (socklen_t*)&len);
+    aud_addr.sin_port = htons(ntohs(aud_addr.sin_port) + 2);    
+
+    if (bind(sockfd, (struct sockaddr *)&aud_addr, sizeof(aud_addr)) < 0) {
+        std::cerr << "Failed to bind socket." << std::endl;
+        close(sockfd);
+        return;
+    }else{
+        printf("bind audio socket\n");
+
+        // while(true){
+        //     printf("lalalalalal\n");
+        // }
+    }
+
+    // Initialize PortAudio
+    Pa_Initialize();
+
+    PaStream *stream;
+    Pa_OpenDefaultStream(&stream,
+                         0, // Input channels
+                         1, // Output channels
+                         paFloat32, // Sample format
+                         SAMPLE_RATE,
+                         FRAMES_PER_BUFFER,
+                         nullptr, // No callback
+                         nullptr); // No user data
+
+    Pa_StartStream(stream);
+
+    float buffer[FRAMES_PER_BUFFER];
+    while (true) {
+        ssize_t receivedSize = recvfrom(sockfd, buffer, sizeof(buffer), 0, nullptr, nullptr);
+        if (receivedSize < 0) {
+            std::cerr << "Failed to receive audio data: " << strerror(errno) << std::endl;
+            break;
+        }
+        Pa_WriteStream(stream, buffer, FRAMES_PER_BUFFER);
+    }
+
+    Pa_StopStream(stream);
+    Pa_CloseStream(stream);
+    Pa_Terminate();
+    close(sockfd);
+
 
 }
 
