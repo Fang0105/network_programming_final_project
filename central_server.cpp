@@ -74,18 +74,6 @@ class CentralServer {
                 RoomServer room_server(server_address, room.running_port);
                 room_server.run();
 
-                // printf("remove room id = %d\n", room.room_id);
-                // for(int i=0;i<all_rooms_child.size();i++){
-                //     if(all_rooms_child[i].room_id == room.room_id){
-                //         printf("%d stop\n", i);
-                //         all_rooms_child.erase(all_rooms_child.begin() + i);
-                //         break;
-                //     }
-                // }
-                // printf("success remove room id = %d\n", room.room_id);
-                // printf("all rooms size = %d\n", all_rooms_child.size());
-
-
                 exit(0);
 
             } else if (pid > 0) {
