@@ -3,7 +3,7 @@ PROGS =	central_server test client test_roomserver_client_audience test_roomserv
 ODIR = output
 INCLUDE = RoomServer.hpp
 CppFLAGS = -std=c++11
-OPENCV_FLAGS = `pkg-config --cflags --libs opencv4`
+OPENCV_FLAGS = `pkg-config --cflags --libs opencv4` -I/opt/homebrew/include -L/opt/homebrew/lib -lportaudio
 
 
 # all:	${PROGS}
